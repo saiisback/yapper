@@ -154,17 +154,33 @@ export async function POST(req: NextRequest) {
     }
 
     // ── StarkZap: Submit review on-chain (gasless via AVNU Paymaster) ──
-    const { txHash, contentHash, imageHash } = await submitReviewOnChain(
-      entityId,
-      contentText,
-      rating,
-      (identityMode as "anonymous" | "pseudonymous" | "public") ?? "anonymous",
-      imageFile
-    );
+    // Skip on-chain submission if no private key is configured
+    let txHash: string | null = null;
+    let contentHash: string | null = null;
+    let imageHash: string | null = null;
 
-    console.log("[StarkZap] Review tx confirmed:", txHash);
-    if (imageHash) {
-      console.log("[StarkZap] Image pinned to IPFS:", imageHash);
+    if (process.env.STARKNET_PRIVATE_KEY) {
+      const onChainResult = await submitReviewOnChain(
+        entityId,
+        contentText,
+        rating,
+        (identityMode as "anonymous" | "pseudonymous" | "public") ?? "anonymous",
+        imageFile
+      );
+      txHash = onChainResult.txHash;
+      contentHash = onChainResult.contentHash;
+      imageHash = onChainResult.imageHash;
+      console.log("[StarkZap] Review tx confirmed:", txHash);
+      if (imageHash) {
+        console.log("[StarkZap] Image pinned to IPFS:", imageHash);
+      }
+    } else {
+      console.warn("[StarkZap] STARKNET_PRIVATE_KEY not set — skipping on-chain submission");
+      // Still upload image to IPFS if provided
+      if (imageFile) {
+        const { uploadFileToIPFS } = await import("@/lib/ipfs");
+        imageHash = await uploadFileToIPFS(imageFile, `review_${Date.now()}.jpg`);
+      }
     }
 
     // ── Cache in PostgreSQL for fast reads ──

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react"
 import { StarRating } from "@/components/StarRating"
 import { IdentityToggle } from "@/components/IdentityToggle"
-import { Camera, Smartphone, X } from "lucide-react"
+import { Camera, X } from "lucide-react"
 
 interface ReviewFormProps {
   entityId: string
@@ -143,26 +143,25 @@ export function ReviewForm({
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>
-            ) : isMobile ? (
+            ) : (
               <button
                 type="button"
                 onClick={() => {
                   if (fileInputRef.current) {
-                    fileInputRef.current.setAttribute("capture", "environment")
+                    if (isMobile) {
+                      fileInputRef.current.setAttribute("capture", "environment")
+                    }
                     fileInputRef.current.click()
-                    fileInputRef.current.removeAttribute("capture")
+                    if (isMobile) {
+                      fileInputRef.current.removeAttribute("capture")
+                    }
                   }
                 }}
                 className="flex h-32 w-32 flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#111111]/20 bg-transparent transition-colors hover:border-[#111111]/40 hover:bg-[#111111]/5"
               >
                 <Camera className="h-6 w-6 text-[#111111]/40" />
-                <span className="text-xs text-[#111111]/40">Camera</span>
+                <span className="text-xs text-[#111111]/40">{isMobile ? "Camera" : "Upload Photo"}</span>
               </button>
-            ) : (
-              <div className="flex h-32 w-32 flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#111111]/20 bg-transparent">
-                <Smartphone className="h-6 w-6 text-[#111111]/40" />
-                <span className="text-xs text-[#111111]/40 text-center leading-tight">Use from phone only</span>
-              </div>
             )}
 
             <input

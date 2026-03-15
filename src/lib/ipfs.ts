@@ -1,23 +1,27 @@
-const PINATA_API_URL = "https://api.pinata.cloud";
+const PINATA_UPLOAD_URL = "https://uploads.pinata.cloud/v3/files";
+const PINATA_GATEWAY = process.env.PINATA_GATEWAY || "gateway.pinata.cloud";
 
 export async function uploadToIPFS(content: string | object): Promise<string> {
-  const res = await fetch(`${PINATA_API_URL}/pinning/pinJSONToIPFS`, {
+  const jsonContent = typeof content === "string" ? { text: content } : content;
+  const blob = new Blob([JSON.stringify(jsonContent)], { type: "application/json" });
+  const formData = new FormData();
+  formData.append("file", blob, "data.json");
+
+  const res = await fetch(PINATA_UPLOAD_URL, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
       Authorization: `Bearer ${process.env.PINATA_JWT}`,
     },
-    body: JSON.stringify({
-      pinataContent: typeof content === "string" ? { text: content } : content,
-    }),
+    body: formData,
   });
 
   if (!res.ok) {
-    throw new Error(`IPFS upload failed: ${res.statusText}`);
+    const errText = await res.text();
+    throw new Error(`IPFS upload failed: ${res.status} ${errText}`);
   }
 
   const data = await res.json();
-  return data.IpfsHash as string;
+  return data.data.cid as string;
 }
 
 /**
@@ -36,12 +40,7 @@ export async function uploadFileToIPFS(
     formData.append("file", new Blob([new Uint8Array(file)]), filename);
   }
 
-  formData.append(
-    "pinataMetadata",
-    JSON.stringify({ name: filename })
-  );
-
-  const res = await fetch(`${PINATA_API_URL}/pinning/pinFileToIPFS`, {
+  const res = await fetch(PINATA_UPLOAD_URL, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${process.env.PINATA_JWT}`,
@@ -50,13 +49,14 @@ export async function uploadFileToIPFS(
   });
 
   if (!res.ok) {
-    throw new Error(`IPFS file upload failed: ${res.statusText}`);
+    const errText = await res.text();
+    throw new Error(`IPFS file upload failed: ${res.status} ${errText}`);
   }
 
   const data = await res.json();
-  return data.IpfsHash as string;
+  return data.data.cid as string;
 }
 
 export function ipfsUrl(hash: string): string {
-  return `https://gateway.pinata.cloud/ipfs/${hash}`;
+  return `https://${PINATA_GATEWAY}/ipfs/${hash}`;
 }

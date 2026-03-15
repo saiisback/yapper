@@ -65,7 +65,7 @@ export function NavBar() {
 
       {/* Mobile bottom nav — floating dark pill */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden px-4 pb-4">
-        <div className="flex items-center justify-around rounded-full bg-[#111111] px-3 py-2 shadow-2xl shadow-black/60">
+        <div className="flex items-center rounded-full bg-[#111111] px-2 py-2 shadow-2xl shadow-black/60">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             return (
@@ -73,13 +73,14 @@ export function NavBar() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex flex-col items-center gap-0.5 rounded-full p-2.5 text-[0.6rem] font-medium transition-all",
+                  "flex flex-1 items-center justify-center gap-1.5 rounded-full p-2.5 text-xs font-medium transition-all",
                   isActive
-                    ? "bg-warm-yellow text-[#111111]"
+                    ? "bg-warm-yellow text-[#111111] px-4"
                     : "text-[#A0A0A0]"
                 )}
               >
                 <item.icon className="size-5" />
+                {isActive && <span>{item.label}</span>}
               </Link>
             );
           })}

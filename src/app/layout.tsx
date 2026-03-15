@@ -5,7 +5,7 @@ import { NavBar } from "@/components/NavBar";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
-  variable: "--font-sans",
+  variable: "--font-space-grotesk",
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
 });

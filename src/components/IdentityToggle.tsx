@@ -38,7 +38,7 @@ export function IdentityToggle({
 }: IdentityToggleProps) {
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-sm font-semibold text-[#1C1C1E]">Identity Mode</span>
+      <span className="text-sm font-semibold text-[#111111]">Identity Mode</span>
       <div className="flex gap-2">
         {modes.map(({ key, label, icon: Icon }) => {
           const isActive = value === key
@@ -46,10 +46,10 @@ export function IdentityToggle({
             <button
               key={key}
               type="button"
-              className={`flex flex-1 flex-col items-center gap-1 rounded-2xl py-3 text-xs font-medium transition-all ${
+              className={`flex flex-1 flex-col items-center gap-1.5 rounded-full py-3 text-xs font-medium transition-all ${
                 isActive
-                  ? "bg-[#1C1C1E] text-[#F5F0E1]"
-                  : "bg-[#1C1C1E]/10 text-[#1C1C1E]/60 hover:bg-[#1C1C1E]/20"
+                  ? "bg-[#111111] text-white"
+                  : "border border-[#111111]/15 bg-transparent text-[#111111]/60 hover:bg-[#111111]/10"
               }`}
               onClick={() => onChange(key)}
             >
@@ -60,17 +60,17 @@ export function IdentityToggle({
         })}
       </div>
       {value === "pseudonymous" && pseudonym && (
-        <p className="text-xs text-[#1C1C1E]/50">
+        <p className="text-xs text-[#111111]/50">
           Posting as <span className="font-medium">{pseudonym}</span>
         </p>
       )}
       {value === "anonymous" && (
-        <p className="text-xs text-[#1C1C1E]/50">
+        <p className="text-xs text-[#111111]/50">
           Your identity will be completely hidden.
         </p>
       )}
       {value === "public" && (
-        <p className="text-xs text-[#1C1C1E]/50">
+        <p className="text-xs text-[#111111]/50">
           Your name will be visible on your review.
         </p>
       )}

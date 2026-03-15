@@ -58,5 +58,5 @@ export async function uploadFileToIPFS(
 }
 
 export function ipfsUrl(hash: string): string {
-  return `https://${PINATA_GATEWAY}/ipfs/${hash}`;
+  return `https://${PINATA_GATEWAY}/files/${hash}`;
 }

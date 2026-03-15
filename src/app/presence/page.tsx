@@ -847,7 +847,6 @@ function CheckinModal({
               />
               Open Camera
             </label>
-            <p className="text-xs text-[#666666]">or select from gallery</p>
           </div>
         )}
 

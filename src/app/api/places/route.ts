@@ -2,12 +2,29 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { addEntityOnChain } from "@/lib/starkzap";
 
+// Haversine distance in meters
+function haversineDistance(
+  lat1: number, lon1: number,
+  lat2: number, lon2: number
+): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const query = searchParams.get("q");
   const category = searchParams.get("category");
   const sort = searchParams.get("sort") ?? "rating";
   const limit = Math.min(parseInt(searchParams.get("limit") ?? "20"), 100);
+  const latitude = searchParams.get("latitude");
+  const longitude = searchParams.get("longitude");
 
   try {
     const where: Record<string, unknown> = {};
@@ -25,18 +42,48 @@ export async function GET(req: NextRequest) {
       where.category = category;
     }
 
-    const orderBy: Record<string, string> =
-      sort === "reviews"
-        ? { reviewCount: "desc" }
-        : sort === "newest"
-          ? { createdAt: "desc" }
-          : { avgRating: "desc" };
+    // When location is provided, only return entities that have coordinates
+    if (latitude && longitude) {
+      where.latitude = { not: null };
+      where.longitude = { not: null };
+    }
 
-    const entities = await prisma.entity.findMany({
+    const orderBy: Record<string, string> =
+      sort === "distance"
+        ? { createdAt: "desc" } // fetch all, sort by distance below
+        : sort === "reviews"
+          ? { reviewCount: "desc" }
+          : sort === "newest"
+            ? { createdAt: "desc" }
+            : { avgRating: "desc" };
+
+    // Fetch more when sorting by distance so we can filter after
+    const fetchLimit = sort === "distance" && latitude && longitude ? 200 : limit;
+
+    let entities = await prisma.entity.findMany({
       where,
       orderBy,
-      take: limit,
+      take: fetchLimit,
     });
+
+    // If location provided, compute distance and sort by it
+    if (latitude && longitude) {
+      const userLat = parseFloat(latitude);
+      const userLng = parseFloat(longitude);
+
+      const entitiesWithDistance = entities
+        .filter((e) => e.latitude != null && e.longitude != null)
+        .map((e) => ({
+          ...e,
+          distance: haversineDistance(userLat, userLng, e.latitude!, e.longitude!),
+        }));
+
+      if (sort === "distance") {
+        entitiesWithDistance.sort((a, b) => a.distance - b.distance);
+      }
+
+      entities = entitiesWithDistance.slice(0, limit);
+    }
 
     return NextResponse.json({ entities });
   } catch (error) {

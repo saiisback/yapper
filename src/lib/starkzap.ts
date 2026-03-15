@@ -214,17 +214,15 @@ export async function submitReviewOnChain(
   }
 
   // Step 3: Submit review on-chain via StarkZap (gasless via AVNU Paymaster)
-  // This is an atomic multi-call: IPFS hash + rating + optional image hash stored together
+  // post_review now always takes image_hash (0 if no image)
   const identityModeMap = { anonymous: "0", pseudonymous: "1", public: "2" };
   const calldata = [
     entityId,
     contentHash,
     rating.toString(),
     identityModeMap[identityMode],
+    imageHash ?? "0",
   ];
-  if (imageHash) {
-    calldata.push(imageHash);
-  }
 
   const result = await executeOnChain([
     {
@@ -256,7 +254,7 @@ export async function castVoteOnChain(
   return executeOnChain([
     {
       contractAddress: getContractAddress("VOTE"),
-      entrypoint: "vote",
+      entrypoint: "react",
       calldata: [reviewId, reactionMap[voteType]],
     },
   ]);
@@ -327,7 +325,7 @@ export async function bundledEntityAndReview(
     {
       contractAddress: getContractAddress("REVIEW"),
       entrypoint: "post_review",
-      calldata: ["0", contentHash, rating.toString(), identityModeMap[identityMode]],
+      calldata: ["0", contentHash, rating.toString(), identityModeMap[identityMode], "0"],
     },
   ]);
 

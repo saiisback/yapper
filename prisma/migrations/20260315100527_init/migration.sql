@@ -59,7 +59,6 @@ CREATE TABLE "UserProfile" (
     "avatarUrl" TEXT,
     "reviewCount" INTEGER NOT NULL DEFAULT 0,
     "reputation" INTEGER NOT NULL DEFAULT 0,
-    "zkProofHash" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "UserProfile_pkey" PRIMARY KEY ("address")

@@ -70,22 +70,42 @@ export function EntityPageClient({ entity, reviews: initialReviews }: Props) {
     rating: number;
     text: string;
     identityMode: string;
+    image?: File | null;
   }) {
     const session = localStorage.getItem("starkzap_session");
     const authorAddress = session ? JSON.parse(session).address : undefined;
 
     try {
-      const res = await fetch("/api/reviews", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          entityId: entity.id,
-          rating: data.rating,
-          contentText: data.text,
-          identityMode: data.identityMode,
-          authorAddress,
-        }),
-      });
+      let res: Response;
+
+      if (data.image) {
+        // Use FormData for image uploads — sent as multipart/form-data
+        const formData = new FormData();
+        formData.append("entityId", entity.id);
+        formData.append("rating", data.rating.toString());
+        formData.append("contentText", data.text);
+        formData.append("identityMode", data.identityMode);
+        if (authorAddress) formData.append("authorAddress", authorAddress);
+        formData.append("image", data.image);
+
+        res = await fetch("/api/reviews", {
+          method: "POST",
+          body: formData,
+        });
+      } else {
+        // JSON body when no image
+        res = await fetch("/api/reviews", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            entityId: entity.id,
+            rating: data.rating,
+            contentText: data.text,
+            identityMode: data.identityMode,
+            authorAddress,
+          }),
+        });
+      }
 
       if (!res.ok) throw new Error("Failed to post review");
 

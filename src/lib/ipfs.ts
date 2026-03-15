@@ -1,8 +1,6 @@
 const PINATA_API_URL = "https://api.pinata.cloud";
 
 export async function uploadToIPFS(content: string | object): Promise<string> {
-  const body = typeof content === "string" ? content : JSON.stringify(content);
-
   const res = await fetch(`${PINATA_API_URL}/pinning/pinJSONToIPFS`, {
     method: "POST",
     headers: {
@@ -17,6 +15,44 @@ export async function uploadToIPFS(content: string | object): Promise<string> {
 
   if (!res.ok) {
     throw new Error(`IPFS upload failed: ${res.statusText}`);
+  }
+
+  const data = await res.json();
+  return data.IpfsHash as string;
+}
+
+/**
+ * Upload a binary file (e.g. photo) to IPFS via Pinata's pinFileToIPFS endpoint.
+ * Accepts a File/Blob from FormData or a raw Buffer.
+ */
+export async function uploadFileToIPFS(
+  file: Blob | Buffer,
+  filename: string
+): Promise<string> {
+  const formData = new FormData();
+
+  if (file instanceof Blob) {
+    formData.append("file", file, filename);
+  } else {
+    formData.append("file", new Blob([new Uint8Array(file)]), filename);
+  }
+
+  formData.append(
+    "pinataMetadata",
+    JSON.stringify({ name: filename })
+  );
+
+  const res = await fetch(`${PINATA_API_URL}/pinning/pinFileToIPFS`, {
+    method: "POST",
+    headers: {
+      pinata_api_key: process.env.PINATA_API_KEY!,
+      pinata_secret_api_key: process.env.PINATA_SECRET_KEY!,
+    },
+    body: formData,
+  });
+
+  if (!res.ok) {
+    throw new Error(`IPFS file upload failed: ${res.statusText}`);
   }
 
   const data = await res.json();

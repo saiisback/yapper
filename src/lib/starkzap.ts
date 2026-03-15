@@ -3,7 +3,7 @@
 // Reads come from PostgreSQL for speed; indexer reconciles any drift
 
 import { getPaymasterConfig } from "./paymaster";
-import { uploadToIPFS } from "./ipfs";
+import { uploadToIPFS, uploadFileToIPFS } from "./ipfs";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -183,8 +183,9 @@ export async function submitReviewOnChain(
   entityId: string,
   contentText: string,
   rating: number,
-  identityMode: "anonymous" | "pseudonymous" | "public"
-): Promise<{ txHash: string; contentHash: string }> {
+  identityMode: "anonymous" | "pseudonymous" | "public",
+  imageFile?: Blob | null
+): Promise<{ txHash: string; contentHash: string; imageHash: string | null }> {
   // Step 1: Upload review content to IPFS for permanent storage
   let contentHash: string;
   try {
@@ -201,37 +202,62 @@ export async function submitReviewOnChain(
     console.warn("[StarkZap] IPFS upload failed, using placeholder hash");
   }
 
-  // Step 2: Submit review on-chain via StarkZap (gasless via AVNU Paymaster)
-  // This is an atomic multi-call: IPFS hash + rating stored together
+  // Step 2: Upload image to IPFS if provided
+  let imageHash: string | null = null;
+  if (imageFile) {
+    try {
+      imageHash = await uploadFileToIPFS(imageFile, `review_${Date.now()}.jpg`);
+      console.log("[StarkZap] Image uploaded to IPFS:", imageHash);
+    } catch {
+      console.warn("[StarkZap] Image IPFS upload failed, skipping image");
+    }
+  }
+
+  // Step 3: Submit review on-chain via StarkZap (gasless via AVNU Paymaster)
+  // This is an atomic multi-call: IPFS hash + rating + optional image hash stored together
   const identityModeMap = { anonymous: "0", pseudonymous: "1", public: "2" };
+  const calldata = [
+    entityId,
+    contentHash,
+    rating.toString(),
+    identityModeMap[identityMode],
+  ];
+  if (imageHash) {
+    calldata.push(imageHash);
+  }
+
   const result = await executeOnChain([
     {
       contractAddress: getContractAddress("REVIEW"),
       entrypoint: "post_review",
-      calldata: [
-        entityId,
-        contentHash,
-        rating.toString(),
-        identityModeMap[identityMode],
-      ],
+      calldata,
     },
   ]);
 
-  return { txHash: result.txHash, contentHash };
+  return { txHash: result.txHash, contentHash, imageHash };
 }
 
 // ── Vote Operations ────────────────────────────────────────────────────────
 
 export async function castVoteOnChain(
   reviewId: string,
-  voteType: "up" | "down"
+  voteType: "fire" | "skull" | "love" | "gross" | "cap"
 ): Promise<TransactionResult> {
   // Uses session key for rapid voting — no biometric prompt needed
+  // Reaction types mapped to on-chain enum: fire=1, skull=2, love=3, gross=4, cap=5
+  const reactionMap: Record<string, string> = {
+    fire: "1",
+    skull: "2",
+    love: "3",
+    gross: "4",
+    cap: "5",
+  };
+
   return executeOnChain([
     {
       contractAddress: getContractAddress("VOTE"),
       entrypoint: "vote",
-      calldata: [reviewId, voteType === "up" ? "1" : "0"],
+      calldata: [reviewId, reactionMap[voteType]],
     },
   ]);
 }

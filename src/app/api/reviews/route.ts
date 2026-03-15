@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { submitReviewOnChain, estimateGasCost } from "@/lib/starkzap";
+import { ipfsUrl } from "@/lib/ipfs";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -41,8 +42,52 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { entityId, rating, contentText, identityMode, authorAddress } = body;
+    const contentType = req.headers.get("content-type") ?? "";
+
+    let entityId: string;
+    let rating: number;
+    let contentText: string;
+    let identityMode: string;
+    let authorAddress: string | undefined;
+    let imageFile: Blob | null = null;
+
+    if (contentType.includes("multipart/form-data")) {
+      // Handle FormData (with optional photo upload)
+      const formData = await req.formData();
+      entityId = formData.get("entityId") as string;
+      rating = parseInt(formData.get("rating") as string);
+      contentText = formData.get("contentText") as string;
+      identityMode = (formData.get("identityMode") as string) ?? "anonymous";
+      authorAddress = (formData.get("authorAddress") as string) || undefined;
+
+      const file = formData.get("image") as File | null;
+      if (file && file.size > 0) {
+        // Validate file type
+        const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+        if (!allowedTypes.includes(file.type)) {
+          return NextResponse.json(
+            { error: "Image must be JPEG, PNG, WebP, or GIF" },
+            { status: 400 }
+          );
+        }
+        // Validate file size (max 10MB)
+        if (file.size > 10 * 1024 * 1024) {
+          return NextResponse.json(
+            { error: "Image must be under 10MB" },
+            { status: 400 }
+          );
+        }
+        imageFile = file;
+      }
+    } else {
+      // Handle JSON body (no photo)
+      const body = await req.json();
+      entityId = body.entityId;
+      rating = body.rating;
+      contentText = body.contentText;
+      identityMode = body.identityMode ?? "anonymous";
+      authorAddress = body.authorAddress;
+    }
 
     if (!entityId || !rating || !contentText) {
       return NextResponse.json(
@@ -66,18 +111,22 @@ export async function POST(req: NextRequest) {
     }
 
     // ── StarkZap: Submit review on-chain (gasless via AVNU Paymaster) ──
-    // This uploads content to IPFS and posts the review to the Starknet Review contract
+    // This uploads content + optional image to IPFS and posts the review to the Starknet Review contract
     const gasCost = estimateGasCost("review");
     console.log(`[StarkZap] Submitting review on-chain (est. $${gasCost.estimatedUSD}, paid by ${gasCost.paidBy} via ${gasCost.paymaster})`);
 
-    const { txHash, contentHash } = await submitReviewOnChain(
+    const { txHash, contentHash, imageHash } = await submitReviewOnChain(
       entityId,
       contentText,
       rating,
-      (identityMode as "anonymous" | "pseudonymous" | "public") ?? "anonymous"
+      (identityMode as "anonymous" | "pseudonymous" | "public") ?? "anonymous",
+      imageFile
     );
 
     console.log("[StarkZap] Review tx confirmed:", txHash);
+    if (imageHash) {
+      console.log("[StarkZap] Image pinned to IPFS:", imageHash);
+    }
 
     // ── Cache in PostgreSQL for fast reads ──
     // The indexer will also sync this from on-chain events, but we write eagerly
@@ -100,6 +149,7 @@ export async function POST(req: NextRequest) {
               ? "Reviewer"
               : null,
         identityMode: identityMode ?? "anonymous",
+        imageUrl: imageHash ? ipfsUrl(imageHash) : null,
         txHash, // Real tx hash from StarkZap
       },
     });
@@ -120,7 +170,16 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json(
-      { ...review, onChain: { txHash, contentHash, paymaster: "AVNU", gasCost: gasCost.estimatedUSD } },
+      {
+        ...review,
+        onChain: {
+          txHash,
+          contentHash,
+          imageHash,
+          paymaster: "AVNU",
+          gasCost: gasCost.estimatedUSD,
+        },
+      },
       { status: 201 }
     );
   } catch (error) {

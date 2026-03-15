@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     const gasCost = estimateGasCost("vote");
     console.log(`[StarkZap] Casting ${voteType} reaction on-chain (est. $${gasCost.estimatedUSD}, paid by ${gasCost.paidBy} via ${gasCost.paymaster})`);
 
-    const result = await castVoteOnChain(reviewId, voteType);
+    const result = await castVoteOnChain(reviewId, voteType as "fire" | "skull" | "love" | "gross" | "cap");
     console.log("[StarkZap] Vote tx confirmed:", result.txHash);
 
     const address = voterAddress ?? `0x${Math.random().toString(16).slice(2, 18)}`;

@@ -123,15 +123,28 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        // Recalculate vote counts
-        const [upvotes, downvotes] = await Promise.all([
-          prisma.vote.count({ where: { reviewId, voteType: "up" } }),
-          prisma.vote.count({ where: { reviewId, voteType: "down" } }),
-        ]);
+        // Recalculate reaction counts (fire, skull, love, gross, cap)
+        const reactionTypes = ["fire", "skull", "love", "gross", "cap"] as const;
+        const reactionFieldMap: Record<string, string> = {
+          fire: "fireCount",
+          skull: "skullCount",
+          love: "loveCount",
+          gross: "grossCount",
+          cap: "capCount",
+        };
+
+        const counts = await Promise.all(
+          reactionTypes.map(async (reaction) => {
+            const count = await prisma.vote.count({
+              where: { reviewId, voteType: reaction },
+            });
+            return [reactionFieldMap[reaction], count] as const;
+          })
+        );
 
         await prisma.review.update({
           where: { id: reviewId },
-          data: { upvotes, downvotes },
+          data: Object.fromEntries(counts),
         });
         break;
       }

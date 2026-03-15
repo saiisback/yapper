@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { StarRating } from "@/components/StarRating"
 import { IdentityToggle } from "@/components/IdentityToggle"
+import { ImagePlus, X } from "lucide-react"
 
 interface ReviewFormProps {
   entityId: string
@@ -11,6 +12,7 @@ interface ReviewFormProps {
     rating: number
     text: string
     identityMode: string
+    image?: File | null
   }) => void
   onCancel?: () => void
 }
@@ -26,13 +28,43 @@ export function ReviewForm({
   const [identityMode, setIdentityMode] = useState<
     "anonymous" | "pseudonymous" | "public"
   >("anonymous")
+  const [image, setImage] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const isValid = rating > 0 && text.trim().length >= 20
+
+  function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"]
+    if (!allowedTypes.includes(file.type)) {
+      alert("Please upload a JPEG, PNG, WebP, or GIF image")
+      return
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert("Image must be under 10MB")
+      return
+    }
+
+    setImage(file)
+    const reader = new FileReader()
+    reader.onload = (ev) => setImagePreview(ev.target?.result as string)
+    reader.readAsDataURL(file)
+  }
+
+  function removeImage() {
+    setImage(null)
+    setImagePreview(null)
+    if (fileInputRef.current) fileInputRef.current.value = ""
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!isValid) return
-    onSubmit?.({ rating, text: text.trim(), identityMode })
+    onSubmit?.({ rating, text: text.trim(), identityMode, image })
   }
 
   return (
@@ -80,6 +112,47 @@ export function ReviewForm({
             >
               {text.trim().length}/20 characters minimum
             </p>
+          </div>
+
+          {/* Photo upload */}
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-[#111111]">
+              Add a Photo <span className="font-normal text-[#111111]/50">(optional)</span>
+            </label>
+
+            {imagePreview ? (
+              <div className="relative inline-block">
+                <img
+                  src={imagePreview}
+                  alt="Review photo preview"
+                  className="h-32 w-32 rounded-2xl object-cover border border-[#111111]/10"
+                />
+                <button
+                  type="button"
+                  onClick={removeImage}
+                  className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-[#111111] text-white transition-transform hover:scale-110"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex h-32 w-32 flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#111111]/20 bg-transparent transition-colors hover:border-[#111111]/40 hover:bg-[#111111]/5"
+              >
+                <ImagePlus className="h-6 w-6 text-[#111111]/40" />
+                <span className="text-xs text-[#111111]/40">Upload</span>
+              </button>
+            )}
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              onChange={handleImageSelect}
+              className="hidden"
+            />
           </div>
 
           <IdentityToggle value={identityMode} onChange={setIdentityMode} />

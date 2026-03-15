@@ -39,7 +39,7 @@ export function NavBar() {
             href="/"
             className="text-xl font-bold tracking-tight text-warm-yellow transition-colors hover:opacity-80"
           >
-            yapper
+            Yap Me.
           </Link>
 
           <nav className="flex items-center gap-1">

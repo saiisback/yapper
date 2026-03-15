@@ -16,11 +16,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Yapper — Honest Reviews",
+  title: "Yap Me. — Honest Reviews",
   description:
     "Rate and review places, creators, and products. Trusted, transparent reviews by real people.",
   openGraph: {
-    title: "Yapper — Honest Reviews",
+    title: "Yap Me. — Honest Reviews",
     description:
       "Rate and review places, creators, and products. Trusted, transparent reviews.",
     type: "website",

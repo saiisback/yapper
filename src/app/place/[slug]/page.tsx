@@ -20,11 +20,11 @@ export async function generateMetadata({ params }: Props) {
   }
 
   if (!entity) {
-    return { title: "Place — Yapper" };
+    return { title: "Place — Yap Me." };
   }
 
   return {
-    title: `${entity.name} — Yapper Reviews`,
+    title: `${entity.name} — Yap Me. Reviews`,
     description:
       entity.description ??
       `Read ${entity.reviewCount} reviews of ${entity.name}. Average rating: ${entity.avgRating.toFixed(1)}/5`,

@@ -161,7 +161,7 @@ export default function HomePage() {
     <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
       {/* Top bar — logo + add button */}
       <section className="mb-5 flex items-center justify-between">
-        <span className="text-xl font-bold tracking-tight text-warm-yellow">Yapper.</span>
+        <span className="text-xl font-bold tracking-tight text-warm-yellow">Yap Me.</span>
       </section>
 
       {/* Trending tags — horizontal scroll */}

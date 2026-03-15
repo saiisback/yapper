@@ -98,7 +98,7 @@ export default function LoginPage() {
               <span className="text-2xl font-bold text-[#111111]">Y</span>
             </div>
             <h1 className="text-2xl font-extrabold tracking-tight text-white">
-              {step === "phone" && "Welcome to Yapper"}
+              {step === "phone" && "Welcome to Yap Me."}
               {step === "otp" && "Verify your phone"}
               {step === "setup" && "Setting up..."}
             </h1>

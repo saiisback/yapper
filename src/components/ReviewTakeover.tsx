@@ -26,6 +26,7 @@ interface FeedReview {
   entityType: string
   entityImageUrl: string | null
   entityCategory: string | null
+  imageUrl: string | null
   reactions: ReactionCounts
   tags: string[]
 }
@@ -105,9 +106,9 @@ export function ReviewTakeover({ review, onClose, onReact }: ReviewTakeoverProps
       >
         {/* Image / Gradient header */}
         <div className="relative aspect-[16/10] w-full overflow-hidden">
-          {review.entityImageUrl ? (
+          {(review.imageUrl || review.entityImageUrl) ? (
             <img
-              src={review.entityImageUrl}
+              src={review.imageUrl || review.entityImageUrl!}
               alt={review.entityName}
               className="h-full w-full object-cover"
             />

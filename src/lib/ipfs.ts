@@ -1,11 +1,13 @@
 import { pinata } from "@/utils/config";
 
+const PUBLIC_GROUP_ID = process.env.PINATA_PUBLIC_GROUP_ID || "";
+
 export async function uploadToIPFS(content: string | object): Promise<string> {
   const jsonContent = typeof content === "string" ? { text: content } : content;
   const blob = new Blob([JSON.stringify(jsonContent)], { type: "application/json" });
   const file = new File([blob], "data.json", { type: "application/json" });
 
-  const upload = await pinata.upload.public.file(file);
+  const upload = await pinata.upload.public.file(file).group(PUBLIC_GROUP_ID);
   return upload.cid;
 }
 
@@ -25,16 +27,17 @@ export async function uploadFileToIPFS(
     uploadFile = new File([new Uint8Array(file)], filename, { type: "image/jpeg" });
   }
 
-  const upload = await pinata.upload.public.file(uploadFile);
+  const upload = await pinata.upload.public.file(uploadFile).group(PUBLIC_GROUP_ID);
   return upload.cid;
 }
 
-export async function ipfsUrl(hash: string): Promise<string> {
-  return await pinata.gateways.public.convert(hash);
+export function ipfsUrl(hash: string): string {
+  const gateway = process.env.PINATA_GATEWAY || "gateway.pinata.cloud";
+  return `https://${gateway}/files/${hash}`;
 }
 
 /**
- * Fix legacy IPFS URLs that used /ipfs/ path (v2) to use /files/ path (v3).
+ * Fix legacy IPFS URLs that used /ipfs/ path to use /files/ path.
  * Safe to use on both old and new URLs.
  */
 export function fixLegacyIpfsUrl(url: string): string {

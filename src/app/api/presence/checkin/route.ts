@@ -161,7 +161,7 @@ export async function POST(req: NextRequest) {
         entityId,
         eventId,
         photoHash,
-        photoUrl: await ipfsUrl(photoHash),
+        photoUrl: ipfsUrl(photoHash),
         caption,
         userLatitude,
         userLongitude,

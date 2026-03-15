@@ -208,7 +208,7 @@ export async function POST(req: NextRequest) {
               ? "Reviewer"
               : null,
         identityMode: identityMode ?? "anonymous",
-        imageUrl: imageHash ? await ipfsUrl(imageHash) : null,
+        imageUrl: imageHash ? ipfsUrl(imageHash) : null,
         txHash: txHash ?? undefined,
       },
     });

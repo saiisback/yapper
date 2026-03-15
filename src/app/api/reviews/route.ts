@@ -204,7 +204,7 @@ export async function POST(req: NextRequest) {
               : null,
         identityMode: identityMode ?? "anonymous",
         imageUrl: imageHash ? ipfsUrl(imageHash) : null,
-        txHash, // Real tx hash from StarkZap
+        txHash: txHash ?? undefined,
       },
     });
 

@@ -49,7 +49,7 @@ model Review {
   imageUrl      String?
   reportCount   Int      @default(0)
   hidden        Boolean  @default(false)
-  txHash        String
+  txHash        String?
   createdAt     DateTime @default(now())
   votes         Vote[]
 

@@ -184,6 +184,73 @@ export async function POST(req: NextRequest) {
         break;
       }
 
+      case "ProofRecorded": {
+        const { proofId, user, entityId, eventId, photoHash, timestamp } =
+          event.data as {
+            proofId: string;
+            user: string;
+            entityId: string;
+            eventId: string;
+            photoHash: string;
+            timestamp: number;
+          };
+
+        await prisma.proof.upsert({
+          where: { id: proofId },
+          update: {},
+          create: {
+            id: proofId,
+            userId: user,
+            entityId,
+            eventId: eventId !== "0" ? eventId : null,
+            photoHash,
+            photoUrl: `https://gateway.pinata.cloud/ipfs/${photoHash}`,
+            userLatitude: 0,
+            userLongitude: 0,
+            txHash: event.txHash,
+          },
+        });
+
+        // Update event proof count if applicable
+        if (eventId && eventId !== "0") {
+          await prisma.presenceEvent.update({
+            where: { id: eventId },
+            data: { proofCount: { increment: 1 } },
+          }).catch(() => {
+            // Event may not exist in cache yet
+          });
+        }
+        break;
+      }
+
+      case "EventCreated": {
+        const { eventId, entityId, creator, startTime, endTime } =
+          event.data as {
+            eventId: string;
+            entityId: string;
+            creator: string;
+            startTime: number;
+            endTime: number;
+          };
+
+        await prisma.presenceEvent.upsert({
+          where: { id: eventId },
+          update: {},
+          create: {
+            id: eventId,
+            entityId,
+            name: `Event ${eventId}`,
+            startTime: new Date(startTime * 1000),
+            endTime: new Date(endTime * 1000),
+            latitude: 0,
+            longitude: 0,
+            creator,
+            txHash: event.txHash,
+          },
+        });
+        break;
+      }
+
       default:
         console.warn(`Unknown event type: ${event.eventType}`);
     }

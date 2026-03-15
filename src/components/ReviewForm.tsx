@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { StarRating } from "@/components/StarRating"
 import { IdentityToggle } from "@/components/IdentityToggle"
-import { ImagePlus, X } from "lucide-react"
+import { Camera, Smartphone, X } from "lucide-react"
 
 interface ReviewFormProps {
   entityId: string
@@ -31,6 +31,14 @@ export function ReviewForm({
   const [image, setImage] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const mobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent
+    ) || (navigator.maxTouchPoints > 0 && window.innerWidth < 768)
+    setIsMobile(mobile)
+  }, [])
 
   const isValid = rating > 0 && text.trim().length >= 20
 
@@ -135,15 +143,26 @@ export function ReviewForm({
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>
-            ) : (
+            ) : isMobile ? (
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => {
+                  if (fileInputRef.current) {
+                    fileInputRef.current.setAttribute("capture", "environment")
+                    fileInputRef.current.click()
+                    fileInputRef.current.removeAttribute("capture")
+                  }
+                }}
                 className="flex h-32 w-32 flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#111111]/20 bg-transparent transition-colors hover:border-[#111111]/40 hover:bg-[#111111]/5"
               >
-                <ImagePlus className="h-6 w-6 text-[#111111]/40" />
-                <span className="text-xs text-[#111111]/40">Upload</span>
+                <Camera className="h-6 w-6 text-[#111111]/40" />
+                <span className="text-xs text-[#111111]/40">Camera</span>
               </button>
+            ) : (
+              <div className="flex h-32 w-32 flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#111111]/20 bg-transparent">
+                <Smartphone className="h-6 w-6 text-[#111111]/40" />
+                <span className="text-xs text-[#111111]/40 text-center leading-tight">Use from phone only</span>
+              </div>
             )}
 
             <input

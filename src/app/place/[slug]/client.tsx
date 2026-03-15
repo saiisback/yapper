@@ -4,9 +4,12 @@ import { useState } from "react";
 import { StarRating } from "@/components/StarRating";
 import { ReviewCard } from "@/components/ReviewCard";
 import { ReviewForm } from "@/components/ReviewForm";
-import { MapPin, PenLine, Eye, EyeOff, ChevronLeft, SlidersHorizontal } from "lucide-react";
+import { MapPin, PenLine, Eye, EyeOff, ChevronLeft, SlidersHorizontal, ExternalLink } from "lucide-react";
+import { usePrivy } from "@privy-io/react-auth";
 import { toast } from "sonner";
 import Link from "next/link";
+
+const STARKSCAN_TX_URL = "https://starkscan.co/tx/";
 
 interface EntityData {
   id: string;
@@ -40,6 +43,7 @@ interface Props {
 }
 
 export function EntityPageClient({ entity, reviews: initialReviews }: Props) {
+  const { user } = usePrivy();
   const [reviews, setReviews] = useState(initialReviews);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
@@ -72,8 +76,7 @@ export function EntityPageClient({ entity, reviews: initialReviews }: Props) {
     identityMode: string;
     image?: File | null;
   }) {
-    const session = localStorage.getItem("starkzap_session");
-    const authorAddress = session ? JSON.parse(session).address : undefined;
+    const authorAddress = user?.wallet?.address ?? user?.id;
 
     try {
       let res: Response;
@@ -112,15 +115,31 @@ export function EntityPageClient({ entity, reviews: initialReviews }: Props) {
       const result = await res.json();
       setReviews((prev) => [result, ...prev]);
       setShowReviewForm(false);
-      toast.success("Review posted successfully!");
+      const txHash = result.onChain?.txHash ?? result.txHash;
+      if (txHash) {
+        toast.success(
+          <div className="flex flex-col gap-1">
+            <span>Review posted on-chain!</span>
+            <a
+              href={`${STARKSCAN_TX_URL}${txHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-xs text-blue-400 hover:underline"
+            >
+              View transaction <ExternalLink className="size-3" />
+            </a>
+          </div>
+        );
+      } else {
+        toast.success("Review posted successfully!");
+      }
     } catch {
       toast.error("Failed to post review. Please try again.");
     }
   }
 
   async function handleVote(reviewId: string, voteType: "up" | "down") {
-    const session = localStorage.getItem("starkzap_session");
-    const voterAddress = session ? JSON.parse(session).address : undefined;
+    const voterAddress = user?.wallet?.address ?? user?.id;
 
     setReviews((prev) =>
       prev.map((r) => {
@@ -150,6 +169,22 @@ export function EntityPageClient({ entity, reviews: initialReviews }: Props) {
             : r
         )
       );
+      const voteTxHash = result.onChain?.txHash ?? result.txHash;
+      if (voteTxHash) {
+        toast.success(
+          <div className="flex flex-col gap-1">
+            <span>Vote recorded on-chain!</span>
+            <a
+              href={`${STARKSCAN_TX_URL}${voteTxHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-xs text-blue-400 hover:underline"
+            >
+              View transaction <ExternalLink className="size-3" />
+            </a>
+          </div>
+        );
+      }
     } catch {
       setReviews((prev) =>
         prev.map((r) => {

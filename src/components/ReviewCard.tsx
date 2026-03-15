@@ -1,7 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import { EyeOff, User, Globe, AlertTriangle, ChevronDown, Calendar } from "lucide-react"
+import { EyeOff, User, Globe, AlertTriangle, ChevronDown, Calendar, ExternalLink } from "lucide-react"
+
+const STARKSCAN_TX_URL = "https://starkscan.co/tx/"
 import { StarRating } from "@/components/StarRating"
 import { VoteButtons } from "@/components/VoteButtons"
 
@@ -15,6 +17,7 @@ interface Review {
   downvotes: number
   createdAt: string
   hidden: boolean
+  txHash?: string
 }
 
 interface ReviewCardProps {
@@ -124,14 +127,26 @@ export function ReviewCard({ review, onVote, colorIndex }: ReviewCardProps) {
           downvotes={review.downvotes}
           onVote={onVote}
         />
-        {review.hidden && (
-          <button
-            className={`text-xs ${textSecondary} hover:opacity-70 transition-opacity`}
-            onClick={() => setExpanded(false)}
-          >
-            Hide again
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {review.txHash && (
+            <a
+              href={`${STARKSCAN_TX_URL}${review.txHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`flex items-center gap-1 text-[10px] ${useColoredStyle ? "text-[#111111]/50 hover:text-[#111111]/80" : "text-[#555555] hover:text-[#A0A0A0]"} transition-colors`}
+            >
+              On-chain <ExternalLink className="size-2.5" />
+            </a>
+          )}
+          {review.hidden && (
+            <button
+              className={`text-xs ${textSecondary} hover:opacity-70 transition-opacity`}
+              onClick={() => setExpanded(false)}
+            >
+              Hide again
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )

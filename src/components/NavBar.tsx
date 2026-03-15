@@ -1,30 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Compass, UserCircle, LogIn } from "lucide-react";
+import { Home, Compass, MapPin, UserCircle, LogIn } from "lucide-react";
+import { usePrivy } from "@privy-io/react-auth";
 import { cn } from "@/lib/utils";
 
 export function NavBar() {
   const pathname = usePathname();
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const { ready, authenticated } = usePrivy();
 
-  useEffect(() => {
-    const session = localStorage.getItem("starkzap_session");
-    if (session) {
-      try {
-        const parsed = JSON.parse(session);
-        setIsLoggedIn(Date.now() < parsed.sessionExpiry);
-      } catch {
-        setIsLoggedIn(false);
-      }
-    }
-  }, [pathname]);
+  const isLoggedIn = ready && authenticated;
 
   const navItems = [
     { href: "/", label: "Home", icon: Home },
     { href: "/explore", label: "Explore", icon: Compass },
+    { href: "/presence", label: "Presence", icon: MapPin },
     ...(isLoggedIn
       ? [{ href: "/profile", label: "Profile", icon: UserCircle }]
       : [{ href: "/login", label: "Login", icon: LogIn }]),

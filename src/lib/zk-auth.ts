@@ -1,41 +1,11 @@
-// ZK phone verification and authentication logic
-
-export interface ZKProof {
-  proof: string;
-  nullifier: string;
-  publicInputs: string[];
-}
+// Authentication helpers — now backed by Privy
+// Session state is managed by Privy SDK; these helpers bridge legacy code.
 
 export interface AuthSession {
   address: string;
   pseudonym: string | null;
   sessionExpiry: number;
   sessionKeyPermissions: string[];
-}
-
-export async function requestOTP(phoneNumber: string): Promise<{ success: boolean }> {
-  const res = await fetch("/api/auth", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "request_otp", phoneNumber }),
-  });
-
-  if (!res.ok) throw new Error("Failed to send OTP");
-  return res.json();
-}
-
-export async function verifyOTP(
-  phoneNumber: string,
-  code: string
-): Promise<AuthSession> {
-  const res = await fetch("/api/auth", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "verify_otp", phoneNumber, code }),
-  });
-
-  if (!res.ok) throw new Error("OTP verification failed");
-  return res.json();
 }
 
 export function getSession(): AuthSession | null {

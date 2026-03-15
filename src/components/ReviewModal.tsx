@@ -1,9 +1,12 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { X, ImagePlus, Camera, EyeOff, User, Globe } from "lucide-react"
+import { X, Camera, EyeOff, User, Globe, Smartphone, ExternalLink } from "lucide-react"
+import { usePrivy } from "@privy-io/react-auth"
 import { StarRating } from "@/components/StarRating"
 import { toast } from "sonner"
+
+const STARKSCAN_TX_URL = "https://starkscan.co/tx/"
 
 interface ReviewModalProps {
   open: boolean
@@ -28,6 +31,18 @@ export function ReviewModal({ open, onClose }: ReviewModalProps) {
   const [submitting, setSubmitting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const subjectRef = useRef<HTMLInputElement>(null)
+  const [isMobile, setIsMobile] = useState(false)
+  const { user } = usePrivy()
+
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(
+        navigator.userAgent
+      ) || (navigator.maxTouchPoints > 0 && window.innerWidth < 768)
+      setIsMobile(mobile)
+    }
+    checkMobile()
+  }, [])
 
   useEffect(() => {
     if (open) {
@@ -86,8 +101,7 @@ export function ReviewModal({ open, onClose }: ReviewModalProps) {
     if (!isValid || submitting) return
 
     setSubmitting(true)
-    const session = localStorage.getItem("starkzap_session")
-    const authorAddress = session ? JSON.parse(session).address : undefined
+    const authorAddress = user?.wallet?.address ?? user?.id
 
     try {
       let res: Response
@@ -118,7 +132,25 @@ export function ReviewModal({ open, onClose }: ReviewModalProps) {
 
       if (!res.ok) throw new Error("Failed to post review")
 
-      toast.success("Review posted!")
+      const result = await res.json()
+      const txHash = result.onChain?.txHash ?? result.txHash
+      if (txHash) {
+        toast.success(
+          <div className="flex flex-col gap-1">
+            <span>Review posted on-chain!</span>
+            <a
+              href={`${STARKSCAN_TX_URL}${txHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-xs text-blue-400 hover:underline"
+            >
+              View transaction <ExternalLink className="size-3" />
+            </a>
+          </div>
+        )
+      } else {
+        toast.success("Review posted!")
+      }
       onClose()
     } catch {
       toast.error("Failed to post review. Please try again.")
@@ -184,28 +216,27 @@ export function ReviewModal({ open, onClose }: ReviewModalProps) {
               </div>
             ) : (
               <div className="flex shrink-0 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex size-16 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-[#444] bg-[#111111] transition-colors hover:border-warm-yellow/40"
-                >
-                  <ImagePlus className="size-4 text-[#666]" />
-                  <span className="text-[10px] text-[#666]">Photo</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (fileInputRef.current) {
-                      fileInputRef.current.setAttribute("capture", "environment")
-                      fileInputRef.current.click()
-                      fileInputRef.current.removeAttribute("capture")
-                    }
-                  }}
-                  className="flex size-16 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-[#444] bg-[#111111] transition-colors hover:border-warm-yellow/40 sm:hidden"
-                >
-                  <Camera className="size-4 text-[#666]" />
-                  <span className="text-[10px] text-[#666]">Camera</span>
-                </button>
+                {isMobile ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (fileInputRef.current) {
+                        fileInputRef.current.setAttribute("capture", "environment")
+                        fileInputRef.current.click()
+                        fileInputRef.current.removeAttribute("capture")
+                      }
+                    }}
+                    className="flex size-16 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-[#444] bg-[#111111] transition-colors hover:border-warm-yellow/40"
+                  >
+                    <Camera className="size-4 text-[#666]" />
+                    <span className="text-[10px] text-[#666]">Camera</span>
+                  </button>
+                ) : (
+                  <div className="flex size-16 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-[#444] bg-[#111111]">
+                    <Smartphone className="size-4 text-[#666]" />
+                    <span className="text-[10px] text-[#666] text-center leading-tight">Phone only</span>
+                  </div>
+                )}
               </div>
             )}
 

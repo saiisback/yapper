@@ -1,0 +1,35 @@
+{
+  "network": "mainnet",
+  "rpc": "https://rpc.starknet.lava.build",
+  "owner": "0x014377A19eA855314FBd04D484419C9aE9f1F36897FcD170A8825E41860A0F1F",
+  "contracts": {
+    "EntityContract": {
+      "class_hash": "0x074a671ab9ccf1d987d39a1bd8e4266383dbfe58cb35bf86fafdd2d809659176",
+      "address": "0x06d32723213dee09d61118fb2e7d9bf22153cae74355475435970c581b84b66e"
+    },
+    "ReviewContract": {
+      "class_hash": "0x0439d6b828ccf2171f2f4fe21f06717489ee29147db18cf9e9a169ffb3dd9fe4",
+      "address": "0x04d6c037cd2dff107894352e0983822e329659e83512da7fb298eb649c311a0a"
+    },
+    "VoteContract": {
+      "class_hash": "0x05f054cb25a74909f198b036cf558b3035d416022302db9cd9ea9a032b297a0b",
+      "address": "0x04d18e603d70d1b3942d14b40c378f2be094b10cb2bd51506cd895bf45643f71"
+    },
+    "ReportContract": {
+      "class_hash": "0x055cf2f233b1dbdcce9ef55dbce1f9a4a9624b73e4d0d6079a30ddfda491e798",
+      "address": "0x002379eae1f70c493cb50d8a6deb7aafcfb93bba44e298bc448073b3db4355de"
+    },
+    "ProfileContract": {
+      "class_hash": "0x07241db58a82f7f593cae7b005b0a224fde8153f46199895352664ac50e3aaf3",
+      "address": "0x05c19d85909fb9486580b9fd74eb6ef5bdf5dd6dfc5e87a8ac3b9959f32e1840"
+    },
+    "ZkVerifierContract": {
+      "class_hash": "0x0251d9e3518e41e2c2779aea2fb79ca79de9cf19f9b5588f951d0e385cdfdcb7",
+      "address": "0x022ca24153b30438ba90654cfe6235e4bf340ab24d534e7a39e05d7ad27c15fe"
+    },
+    "PresenceContract": {
+      "class_hash": "0x6205df8f59795894d8012add10e4505b94d23c9ded03e54304d78f5406a89d1",
+      "address": "0x27032746857f05cb00005037c16f6bcfd6467db8cf765f4ec716ffba6f6c13b"
+    }
+  }
+}

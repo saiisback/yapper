@@ -2,15 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { usePrivy } from "@privy-io/react-auth";
 import { ReviewCard } from "@/components/ReviewCard";
-import { Star, TrendingUp, PenLine, Settings, LogOut } from "lucide-react";
+import { Star, TrendingUp, PenLine, Settings, LogOut, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-
-interface UserSession {
-  address: string;
-  pseudonym: string | null;
-  sessionExpiry: number;
-}
 
 interface Review {
   id: string;
@@ -26,7 +21,7 @@ interface Review {
 
 export default function ProfilePage() {
   const router = useRouter();
-  const [session, setSession] = useState<UserSession | null>(null);
+  const { ready, authenticated, user, logout } = usePrivy();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [editing, setEditing] = useState(false);
   const [pseudonym, setPseudonym] = useState("");
@@ -34,53 +29,60 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"reviews" | "bookmarks">("reviews");
 
+  const walletAddress = user?.wallet?.address ?? user?.id ?? "";
+  const displayName = pseudonym || user?.email?.address || user?.google?.name || "Anonymous Reviewer";
+
   useEffect(() => {
-    const stored = localStorage.getItem("starkzap_session");
-    if (!stored) {
+    if (ready && !authenticated) {
       router.push("/login");
       return;
     }
 
-    const parsed = JSON.parse(stored) as UserSession;
-    if (Date.now() > parsed.sessionExpiry) {
-      localStorage.removeItem("starkzap_session");
-      router.push("/login");
-      return;
+    if (!ready || !authenticated) return;
+
+    // Load saved pseudonym from localStorage
+    const saved = localStorage.getItem("starkzap_profile");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setPseudonym(parsed.pseudonym ?? "");
+        setBio(parsed.bio ?? "");
+      } catch {}
     }
 
-    setSession(parsed);
-    setPseudonym(parsed.pseudonym ?? "");
-
-    fetch(`/api/reviews?author=${parsed.address}`)
+    fetch(`/api/reviews?author=${walletAddress}`)
       .then((res) => (res.ok ? res.json() : { reviews: [] }))
       .then((data) => setReviews(data.reviews ?? []))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [router]);
+  }, [ready, authenticated, router, walletAddress]);
 
-  function handleLogout() {
+  async function handleLogout() {
+    await logout();
     localStorage.removeItem("starkzap_session");
+    localStorage.removeItem("starkzap_profile");
     router.push("/");
   }
 
-  async function handleSaveProfile() {
-    try {
-      if (session) {
-        const updated = { ...session, pseudonym };
-        localStorage.setItem("starkzap_session", JSON.stringify(updated));
-        setSession(updated);
-      }
-      setEditing(false);
-      toast.success("Profile updated!");
-    } catch {
-      toast.error("Failed to update profile");
-    }
+  function handleSaveProfile() {
+    localStorage.setItem(
+      "starkzap_profile",
+      JSON.stringify({ pseudonym, bio })
+    );
+    setEditing(false);
+    toast.success("Profile updated!");
   }
 
-  if (!session) return null;
+  if (!ready || !authenticated) {
+    return (
+      <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-warm-yellow" />
+      </div>
+    );
+  }
 
   const totalUpvotes = reviews.reduce((sum, r) => sum + r.upvotes, 0);
-  const initials = (session.pseudonym ?? session.address.slice(0, 2)).toUpperCase();
+  const initials = displayName.slice(0, 2).toUpperCase();
 
   return (
     <div className="mx-auto max-w-4xl px-5 py-6 sm:px-6 lg:px-8">
@@ -89,7 +91,7 @@ export default function ProfilePage() {
         <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-start">
           {/* Avatar — dark circle */}
           <div className="flex size-20 items-center justify-center rounded-full bg-[#111111] text-2xl font-bold text-warm-yellow">
-            {initials.slice(0, 2)}
+            {initials}
           </div>
 
           <div className="flex-1 text-center sm:text-left">
@@ -126,7 +128,7 @@ export default function ProfilePage() {
             ) : (
               <>
                 <h1 className="text-2xl font-extrabold tracking-tight text-[#111111]">
-                  {session.pseudonym ?? "Anonymous Reviewer"}
+                  {displayName}
                 </h1>
                 {bio && <p className="mt-1 text-sm text-[#111111]/60">{bio}</p>}
               </>

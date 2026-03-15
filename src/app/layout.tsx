@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Space_Grotesk, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { NavBar } from "@/components/NavBar";
+import { MobileGate } from "@/components/MobileGate";
+import { PrivyProviderWrapper } from "@/components/PrivyProvider";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -37,9 +39,13 @@ export default function RootLayout({
       <body
         className={`${spaceGrotesk.variable} ${geistMono.variable} antialiased`}
       >
-        <NavBar />
-        <main className="min-h-screen pb-24 md:pt-16 md:pb-0">{children}</main>
-        <Toaster theme="dark" />
+        <PrivyProviderWrapper>
+          <MobileGate>
+            <NavBar />
+            <main className="min-h-screen pb-24 md:pt-16 md:pb-0">{children}</main>
+            <Toaster theme="dark" />
+          </MobileGate>
+        </PrivyProviderWrapper>
       </body>
     </html>
   );

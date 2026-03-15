@@ -4,3 +4,4 @@ mod vote;
 mod report;
 mod profile;
 mod zk_verifier;
+mod presence;

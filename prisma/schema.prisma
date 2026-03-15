@@ -38,6 +38,13 @@ model Review {
   identityMode  String   // "anonymous" | "pseudonymous" | "public"
   upvotes       Int      @default(0)
   downvotes     Int      @default(0)
+  fireCount     Int      @default(0)
+  skullCount    Int      @default(0)
+  loveCount     Int      @default(0)
+  grossCount    Int      @default(0)
+  capCount      Int      @default(0)
+  tags          String[] @default([])
+  imageUrl      String?
   reportCount   Int      @default(0)
   hidden        Boolean  @default(false)
   txHash        String
@@ -53,7 +60,7 @@ model Vote {
   reviewId     String
   review       Review   @relation(fields: [reviewId], references: [id])
   voterAddress String
-  voteType     String   // "up" | "down"
+  voteType     String   // "fire" | "skull" | "love" | "gross" | "cap"
   txHash       String
   createdAt    DateTime @default(now())
 

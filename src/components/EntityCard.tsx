@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { MapPin, ArrowUpRight, Calendar, Star } from "lucide-react"
+import { MapPin, Share2, Calendar, Star } from "lucide-react"
 
 interface Entity {
   id: string
@@ -25,6 +25,12 @@ const CARD_COLORS = [
   "bg-cool-gray",
 ]
 
+const AVATAR_COLORS = [
+  "bg-amber-600",
+  "bg-rose-400",
+  "bg-emerald-500",
+]
+
 function getEntityHref(entity: Entity): string {
   switch (entity.type) {
     case "place":
@@ -44,9 +50,9 @@ export function EntityCard({ entity, colorIndex = 0 }: EntityCardProps) {
   return (
     <Link href={getEntityHref(entity)} className="block group">
       <div className={`${bgColor} relative overflow-hidden rounded-3xl p-5 transition-all duration-200 hover:scale-[1.02] hover:shadow-xl hover:shadow-black/20`}>
-        {/* Dark circular share/action button */}
-        <div className="absolute top-4 right-4 flex size-10 items-center justify-center rounded-full bg-[#111111] text-white transition-transform group-hover:rotate-45">
-          <ArrowUpRight className="size-4" />
+        {/* Dark circular share button */}
+        <div className="absolute top-4 right-4 flex size-10 items-center justify-center rounded-full bg-[#111111] text-white transition-transform group-hover:rotate-12">
+          <Share2 className="size-4" />
         </div>
 
         {/* Title */}
@@ -66,14 +72,27 @@ export function EntityCard({ entity, colorIndex = 0 }: EntityCardProps) {
           </div>
         </div>
 
-        {/* Bottom row */}
+        {/* Bottom row — overlapping avatars + category pill */}
         <div className="flex items-center justify-between gap-2">
-          {entity.address ? (
-            <div className="flex items-center gap-1 text-xs text-[#111111]/50 max-w-[60%]">
-              <MapPin className="size-3 shrink-0" />
-              <span className="line-clamp-1">{entity.address}</span>
+          {/* Overlapping avatar group */}
+          <div className="flex items-center">
+            <div className="flex -space-x-2">
+              {AVATAR_COLORS.slice(0, Math.min(entity.reviewCount, 3) || 1).map((color, i) => (
+                <div
+                  key={i}
+                  className={`size-8 rounded-full ${color} ring-2 ring-white/30 flex items-center justify-center text-xs font-bold text-white`}
+                >
+                  {String.fromCharCode(65 + i)}
+                </div>
+              ))}
             </div>
-          ) : <div />}
+            {entity.reviewCount > 3 && (
+              <span className="ml-1.5 text-xs font-medium text-[#111111]/50">
+                +{entity.reviewCount - 3}
+              </span>
+            )}
+          </div>
+
           {entity.category && (
             <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[#111111]">
               {entity.category}

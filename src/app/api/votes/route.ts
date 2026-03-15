@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { castVoteOnChain, estimateGasCost } from "@/lib/starkzap";
 
+const VALID_REACTIONS = ["fire", "skull", "love", "gross", "cap"] as const;
+type ReactionType = (typeof VALID_REACTIONS)[number];
+
+const REACTION_FIELD_MAP: Record<ReactionType, string> = {
+  fire: "fireCount",
+  skull: "skullCount",
+  love: "loveCount",
+  gross: "grossCount",
+  cap: "capCount",
+};
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -14,22 +25,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!["up", "down"].includes(voteType)) {
+    if (!VALID_REACTIONS.includes(voteType)) {
       return NextResponse.json(
-        { error: "voteType must be 'up' or 'down'" },
+        { error: `voteType must be one of: ${VALID_REACTIONS.join(", ")}` },
         { status: 400 }
       );
     }
 
-    // ── StarkZap: Cast vote on-chain (gasless, uses session key) ──
-    // Session keys allow rapid voting without biometric prompt each time
     const gasCost = estimateGasCost("vote");
-    console.log(`[StarkZap] Casting ${voteType}vote on-chain (est. $${gasCost.estimatedUSD}, paid by ${gasCost.paidBy} via ${gasCost.paymaster})`);
+    console.log(`[StarkZap] Casting ${voteType} reaction on-chain (est. $${gasCost.estimatedUSD}, paid by ${gasCost.paidBy} via ${gasCost.paymaster})`);
 
     const result = await castVoteOnChain(reviewId, voteType);
     console.log("[StarkZap] Vote tx confirmed:", result.txHash);
 
-    // ── Cache in PostgreSQL ──
     const address = voterAddress ?? `0x${Math.random().toString(16).slice(2, 18)}`;
 
     await prisma.vote.upsert({
@@ -48,21 +56,32 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Recalculate vote counts from cache
-    const [upvotes, downvotes] = await Promise.all([
-      prisma.vote.count({ where: { reviewId, voteType: "up" } }),
-      prisma.vote.count({ where: { reviewId, voteType: "down" } }),
-    ]);
+    // Recalculate all reaction counts
+    const counts = await Promise.all(
+      VALID_REACTIONS.map(async (reaction) => {
+        const count = await prisma.vote.count({
+          where: { reviewId, voteType: reaction },
+        });
+        return [REACTION_FIELD_MAP[reaction], count] as const;
+      })
+    );
 
+    const updateData = Object.fromEntries(counts);
     await prisma.review.update({
       where: { id: reviewId },
-      data: { upvotes, downvotes },
+      data: updateData,
     });
+
+    const reactionCounts = Object.fromEntries(
+      VALID_REACTIONS.map((r) => [
+        r,
+        counts.find(([field]) => field === REACTION_FIELD_MAP[r])?.[1] ?? 0,
+      ])
+    );
 
     return NextResponse.json({
       success: true,
-      upvotes,
-      downvotes,
+      reactions: reactionCounts,
       onChain: { txHash: result.txHash, paymaster: "AVNU", gasCost: gasCost.estimatedUSD },
     });
   } catch (error) {

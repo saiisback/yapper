@@ -69,7 +69,7 @@ export function ReviewForm({
               placeholder="Share your experience... (minimum 20 characters)"
               value={text}
               onChange={(e) => setText(e.target.value)}
-              className="w-full rounded-3xl border border-[#111111]/15 bg-transparent px-5 py-4 text-sm text-[#111111] placeholder:text-[#111111]/40 outline-none resize-y min-h-28 focus:border-[#111111]/30 transition-colors"
+              className="w-full rounded-full border border-[#111111]/15 bg-transparent px-5 py-4 text-sm text-[#111111] placeholder:text-[#111111]/40 outline-none resize-y min-h-28 focus:border-[#111111]/30 transition-colors"
             />
             <p
               className={`text-xs ${

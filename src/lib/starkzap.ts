@@ -8,6 +8,7 @@ import {
   Contract,
   CallData,
   hash,
+  PaymasterRpc,
   type Call,
   type InvokeFunctionResponse,
 } from "starknet";
@@ -362,9 +363,16 @@ async function executeMulticall(
       if (!avnuApiKey) {
         throw new Error("[StarkZap] AVNU_API_KEY is required for paymaster transactions");
       }
+      const paymaster = new PaymasterRpc({
+        nodeUrl: "https://starknet.paymaster.avnu.fi",
+        headers: { "x-api-key": avnuApiKey },
+      });
       executeOptions.paymaster = {
-        type: "avnu",
-        apiKey: avnuApiKey,
+        provider: paymaster,
+        params: {
+          version: "0x1",
+          feeMode: { mode: "default" },
+        },
       };
     }
 

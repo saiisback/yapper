@@ -32,7 +32,7 @@ model Review {
   id            String   @id
   entityId      String
   entity        Entity   @relation(fields: [entityId], references: [id])
-  contentHash   String
+  contentHash   String?
   contentText   String
   rating        Int      // 1-5
   authorAddress String

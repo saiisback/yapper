@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { submitReviewOnChain } from "@/lib/starkzap";
-import { ipfsUrl } from "@/lib/ipfs";
+import { ipfsUrl, fixLegacyIpfsUrl } from "@/lib/ipfs";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -33,7 +33,12 @@ export async function GET(req: NextRequest) {
       take: limit,
     });
 
-    return NextResponse.json({ reviews });
+    const fixed = reviews.map((r) => ({
+      ...r,
+      imageUrl: r.imageUrl ? fixLegacyIpfsUrl(r.imageUrl) : null,
+    }));
+
+    return NextResponse.json({ reviews: fixed });
   } catch (error) {
     console.error("Error fetching reviews:", error);
     return NextResponse.json({ reviews: [] });
@@ -203,7 +208,7 @@ export async function POST(req: NextRequest) {
               ? "Reviewer"
               : null,
         identityMode: identityMode ?? "anonymous",
-        imageUrl: imageHash ? ipfsUrl(imageHash) : null,
+        imageUrl: imageHash ? await ipfsUrl(imageHash) : null,
         txHash: txHash ?? undefined,
       },
     });

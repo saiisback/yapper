@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { submitPresenceProofOnChain } from "@/lib/starkzap";
 import { ipfsUrl } from "@/lib/ipfs";
+import { getPlaceDetails, mapGoogleCategory } from "@/lib/google-places";
 
 export async function POST(req: NextRequest) {
   try {
@@ -58,8 +59,36 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify entity exists
-    const entity = await prisma.entity.findUnique({ where: { id: entityId } });
+    // Verify entity exists — if it's a Google Place, auto-create in DB
+    let entity = await prisma.entity.findUnique({ where: { id: entityId } });
+    if (!entity && entityId.startsWith("google_")) {
+      const placeId = entityId.replace("google_", "");
+      try {
+        const gPlace = await getPlaceDetails(placeId);
+        const slug = gPlace.name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "");
+        entity = await prisma.entity.create({
+          data: {
+            id: entityId,
+            type: "place",
+            name: gPlace.name,
+            slug: `${slug}-${Date.now()}`,
+            address: gPlace.formatted_address,
+            category: mapGoogleCategory(gPlace.types),
+            latitude: gPlace.geometry.location.lat,
+            longitude: gPlace.geometry.location.lng,
+            avgRating: gPlace.rating ?? 0,
+            reviewCount: gPlace.user_ratings_total ?? 0,
+            source: "google_places",
+          },
+        });
+      } catch (err) {
+        console.error("Failed to fetch Google Place details:", err);
+        return NextResponse.json({ error: "Entity not found" }, { status: 404 });
+      }
+    }
     if (!entity) {
       return NextResponse.json({ error: "Entity not found" }, { status: 404 });
     }
@@ -132,7 +161,7 @@ export async function POST(req: NextRequest) {
         entityId,
         eventId,
         photoHash,
-        photoUrl: ipfsUrl(photoHash),
+        photoUrl: await ipfsUrl(photoHash),
         caption,
         userLatitude,
         userLongitude,

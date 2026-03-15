@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { fixLegacyIpfsUrl } from "@/lib/ipfs";
 
 // Mixed feed: 40% trending, 30% random, 30% new
 export async function GET(req: NextRequest) {
@@ -130,10 +131,10 @@ export async function GET(req: NextRequest) {
       entityName: r.entity.name,
       entitySlug: r.entity.slug,
       entityType: r.entity.type,
-      entityImageUrl: r.entity.imageUrl,
+      entityImageUrl: r.entity.imageUrl ? fixLegacyIpfsUrl(r.entity.imageUrl) : null,
       entityCategory: r.entity.category,
       tags: r.tags,
-      imageUrl: r.imageUrl,
+      imageUrl: r.imageUrl ? fixLegacyIpfsUrl(r.imageUrl) : null,
       reactions: {
         fire: r.fireCount,
         skull: r.skullCount,

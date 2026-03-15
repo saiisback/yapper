@@ -16,7 +16,7 @@ async function fetchFromIPFS(hash: string, timeout = 5000): Promise<unknown | nu
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
-    const res = await fetch(ipfsUrl(hash), { signal: controller.signal });
+    const res = await fetch(await ipfsUrl(hash), { signal: controller.signal });
     clearTimeout(timer);
     if (!res.ok) return null;
     return res.json();
@@ -230,7 +230,7 @@ export async function POST(req: NextRequest) {
             entityId,
             eventId: eventId !== "0" ? eventId : null,
             photoHash,
-            photoUrl: ipfsUrl(photoHash),
+            photoUrl: await ipfsUrl(photoHash),
             userLatitude: userLatitude ?? 0,
             userLongitude: userLongitude ?? 0,
             txHash: event.txHash,

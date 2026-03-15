@@ -751,11 +751,9 @@ function CheckinModal({
               ),
             })
           )
-          // Filter within 500m and sort
+          // Sort by distance
           setNearbyEntities(
-            entities
-              .filter((e: NearbyEntity) => e.distance <= 500)
-              .sort((a: NearbyEntity, b: NearbyEntity) => a.distance - b.distance)
+            entities.sort((a: NearbyEntity, b: NearbyEntity) => a.distance - b.distance)
           )
         }
       } catch {

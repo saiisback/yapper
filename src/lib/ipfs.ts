@@ -1,62 +1,42 @@
-const PINATA_UPLOAD_URL = "https://uploads.pinata.cloud/v3/files";
-const PINATA_GATEWAY = process.env.PINATA_GATEWAY || "gateway.pinata.cloud";
+import { pinata } from "@/utils/config";
 
 export async function uploadToIPFS(content: string | object): Promise<string> {
   const jsonContent = typeof content === "string" ? { text: content } : content;
   const blob = new Blob([JSON.stringify(jsonContent)], { type: "application/json" });
-  const formData = new FormData();
-  formData.append("file", blob, "data.json");
+  const file = new File([blob], "data.json", { type: "application/json" });
 
-  const res = await fetch(PINATA_UPLOAD_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.PINATA_JWT}`,
-    },
-    body: formData,
-  });
-
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`IPFS upload failed: ${res.status} ${errText}`);
-  }
-
-  const data = await res.json();
-  return data.data.cid as string;
+  const upload = await pinata.upload.public.file(file);
+  return upload.cid;
 }
 
 /**
- * Upload a binary file (e.g. photo) to IPFS via Pinata's pinFileToIPFS endpoint.
+ * Upload a binary file (e.g. photo) to IPFS via Pinata SDK.
  * Accepts a File/Blob from FormData or a raw Buffer.
  */
 export async function uploadFileToIPFS(
   file: Blob | Buffer,
   filename: string
 ): Promise<string> {
-  const formData = new FormData();
+  let uploadFile: File;
 
   if (file instanceof Blob) {
-    formData.append("file", file, filename);
+    uploadFile = new File([file], filename, { type: file.type || "image/jpeg" });
   } else {
-    formData.append("file", new Blob([new Uint8Array(file)]), filename);
+    uploadFile = new File([new Uint8Array(file)], filename, { type: "image/jpeg" });
   }
 
-  const res = await fetch(PINATA_UPLOAD_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.PINATA_JWT}`,
-    },
-    body: formData,
-  });
-
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`IPFS file upload failed: ${res.status} ${errText}`);
-  }
-
-  const data = await res.json();
-  return data.data.cid as string;
+  const upload = await pinata.upload.public.file(uploadFile);
+  return upload.cid;
 }
 
-export function ipfsUrl(hash: string): string {
-  return `https://${PINATA_GATEWAY}/files/${hash}`;
+export async function ipfsUrl(hash: string): Promise<string> {
+  return await pinata.gateways.public.convert(hash);
+}
+
+/**
+ * Fix legacy IPFS URLs that used /ipfs/ path (v2) to use /files/ path (v3).
+ * Safe to use on both old and new URLs.
+ */
+export function fixLegacyIpfsUrl(url: string): string {
+  return url.replace("/ipfs/", "/files/");
 }

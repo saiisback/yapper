@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { fixLegacyIpfsUrl } from "@/lib/ipfs";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -48,7 +49,7 @@ export async function GET(req: NextRequest) {
       return {
         id: p.id,
         userId: p.userId,
-        photoUrl: p.photoUrl,
+        photoUrl: fixLegacyIpfsUrl(p.photoUrl),
         caption: p.caption,
         entityName: p.entity.name,
         entitySlug: p.entity.slug,

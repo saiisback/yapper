@@ -39,6 +39,33 @@ export async function searchPlaces(
   return data.results as GooglePlace[];
 }
 
+export async function nearbySearch(
+  location: { lat: number; lng: number },
+  radius = 500,
+  type?: string
+): Promise<GooglePlace[]> {
+  const params = new URLSearchParams({
+    location: `${location.lat},${location.lng}`,
+    radius: radius.toString(),
+    key: process.env.GOOGLE_PLACES_API_KEY!,
+  });
+
+  if (type) {
+    params.set("type", type);
+  }
+
+  const res = await fetch(
+    `${GOOGLE_PLACES_API}/nearbysearch/json?${params.toString()}`
+  );
+
+  if (!res.ok) {
+    throw new Error(`Google Places API error: ${res.statusText}`);
+  }
+
+  const data = await res.json();
+  return data.results as GooglePlace[];
+}
+
 export async function getPlaceDetails(placeId: string): Promise<GooglePlace> {
   const params = new URLSearchParams({
     place_id: placeId,

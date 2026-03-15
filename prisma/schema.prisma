@@ -76,7 +76,7 @@ model UserProfile {
   avatarUrl   String?
   reviewCount Int      @default(0)
   reputation  Int      @default(0)
-  zkProofHash String
+  zkProofHash String?
   createdAt   DateTime @default(now())
 }
 

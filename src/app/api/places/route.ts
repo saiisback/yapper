@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { addEntityOnChain, estimateGasCost } from "@/lib/starkzap";
+import { addEntityOnChain } from "@/lib/starkzap";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -57,11 +57,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── StarkZap: Create entity on-chain (gasless via AVNU Paymaster) ──
-    // This uploads metadata to IPFS and creates the entity on the Starknet Entity contract
-    const gasCost = estimateGasCost("entity");
-    console.log(`[StarkZap] Creating entity on-chain (est. $${gasCost.estimatedUSD}, paid by ${gasCost.paidBy} via ${gasCost.paymaster})`);
-
+    // ── StarkZap: Create entity on-chain ──
     const { txHash, metadataHash } = await addEntityOnChain(
       type as "place" | "creator" | "product",
       { name, description, address, category }
@@ -94,7 +90,7 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json(
-      { ...entity, onChain: { txHash, metadataHash, paymaster: "AVNU", gasCost: gasCost.estimatedUSD } },
+      { ...entity, onChain: { txHash, metadataHash } },
       { status: 201 }
     );
   } catch (error) {

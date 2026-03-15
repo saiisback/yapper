@@ -8,7 +8,6 @@ import {
   Contract,
   CallData,
   hash,
-  ec,
   type Call,
   type InvokeFunctionResponse,
 } from "starknet";
@@ -21,33 +20,30 @@ export interface TransactionResult {
   status: "pending" | "confirmed" | "failed";
 }
 
-export interface SessionKey {
-  key: string;
-  expiresAt: number;
-  permissions: ("vote" | "report")[];
+// ── Deployment Config (from environment) ───────────────────────────────────
+
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`[StarkZap] Missing required env var: ${name}`);
+  }
+  return value;
 }
 
-export interface StarkZapWallet {
-  address: string;
-  publicKey: string;
-  privateKey: string;
+function getDeployment() {
+  return {
+    rpc: requireEnv("STARKNET_RPC_URL"),
+    owner: requireEnv("STARKNET_OWNER_ADDRESS"),
+    contracts: {
+      ENTITY: requireEnv("ENTITY_CONTRACT_ADDRESS"),
+      REVIEW: requireEnv("REVIEW_CONTRACT_ADDRESS"),
+      VOTE: requireEnv("VOTE_CONTRACT_ADDRESS"),
+      REPORT: requireEnv("REPORT_CONTRACT_ADDRESS"),
+      PROFILE: requireEnv("PROFILE_CONTRACT_ADDRESS"),
+      PRESENCE: requireEnv("PRESENCE_CONTRACT_ADDRESS"),
+    },
+  };
 }
-
-// ── Deployment Config (mainnet) ────────────────────────────────────────────
-
-const DEPLOYMENT = {
-  rpc: "https://rpc.starknet.lava.build",
-  owner: "0x014377A19eA855314FBd04D484419C9aE9f1F36897FcD170A8825E41860A0F1F",
-  contracts: {
-    ENTITY: "0x06d32723213dee09d61118fb2e7d9bf22153cae74355475435970c581b84b66e",
-    REVIEW: "0x04d6c037cd2dff107894352e0983822e329659e83512da7fb298eb649c311a0a",
-    VOTE: "0x04d18e603d70d1b3942d14b40c378f2be094b10cb2bd51506cd895bf45643f71",
-    REPORT: "0x002379eae1f70c493cb50d8a6deb7aafcfb93bba44e298bc448073b3db4355de",
-    PROFILE: "0x05c19d85909fb9486580b9fd74eb6ef5bdf5dd6dfc5e87a8ac3b9959f32e1840",
-    ZK_VERIFIER: "0x022ca24153b30438ba90654cfe6235e4bf340ab24d534e7a39e05d7ad27c15fe",
-    PRESENCE: "0x27032746857f05cb00005037c16f6bcfd6467db8cf765f4ec716ffba6f6c13b",
-  },
-} as const;
 
 // ── ABI Definitions ────────────────────────────────────────────────────────
 
@@ -234,30 +230,6 @@ const PROFILE_ABI = [
   },
 ];
 
-const ZK_VERIFIER_ABI = [
-  {
-    type: "interface",
-    name: "starkzap_contracts::zk_verifier::IZkVerifier",
-    items: [
-      {
-        type: "function", name: "verify_phone_proof",
-        inputs: [
-          { name: "proof", type: "core::felt252" },
-          { name: "nullifier", type: "core::felt252" },
-        ],
-        outputs: [{ type: "core::bool" }],
-        state_mutability: "external",
-      },
-      {
-        type: "function", name: "is_verified",
-        inputs: [{ name: "address", type: "core::starknet::contract_address::ContractAddress" }],
-        outputs: [{ type: "core::bool" }],
-        state_mutability: "view",
-      },
-    ],
-  },
-];
-
 const PRESENCE_ABI = [
   {
     type: "interface",
@@ -339,7 +311,7 @@ let _provider: RpcProvider | null = null;
 function getProvider(): RpcProvider {
   if (!_provider) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    _provider = new RpcProvider({ nodeUrl: DEPLOYMENT.rpc } as any);
+    _provider = new RpcProvider({ nodeUrl: getDeployment().rpc } as any);
   }
   return _provider;
 }
@@ -354,7 +326,7 @@ function getServerAccount(): Account {
     }
     _serverAccount = new Account({
       provider: getProvider(),
-      address: DEPLOYMENT.owner,
+      address: getDeployment().owner,
       signer: privateKey,
     });
   }
@@ -364,13 +336,13 @@ function getServerAccount(): Account {
 // ── Contract Helpers ───────────────────────────────────────────────────────
 
 function getContract(
-  name: keyof typeof DEPLOYMENT.contracts,
+  name: keyof ReturnType<typeof getDeployment>["contracts"],
   abi: unknown[],
   account?: Account
 ): Contract {
   const contract = new Contract({
     abi: abi as import("starknet").Abi,
-    address: DEPLOYMENT.contracts[name],
+    address: getDeployment().contracts[name],
     providerOrAccount: account ?? getProvider(),
   });
   return contract;
@@ -380,10 +352,23 @@ function getContract(
 
 async function executeMulticall(
   account: Account,
-  calls: Call[]
+  calls: Call[],
+  options?: { usePaymaster?: boolean }
 ): Promise<TransactionResult> {
   try {
-    const response: InvokeFunctionResponse = await account.execute(calls);
+    const executeOptions: Record<string, unknown> = {};
+    if (options?.usePaymaster) {
+      const avnuApiKey = process.env.AVNU_API_KEY;
+      if (!avnuApiKey) {
+        throw new Error("[StarkZap] AVNU_API_KEY is required for paymaster transactions");
+      }
+      executeOptions.paymaster = {
+        type: "avnu",
+        apiKey: avnuApiKey,
+      };
+    }
+
+    const response: InvokeFunctionResponse = await account.execute(calls, executeOptions);
     console.log("[StarkZap] Tx submitted:", response.transaction_hash);
 
     // Wait for acceptance (non-blocking timeout)
@@ -404,70 +389,13 @@ async function executeMulticall(
   }
 }
 
-// ── Wallet Creation ────────────────────────────────────────────────────────
-
-export async function createInvisibleWallet(
-  zkProofHash: string
-): Promise<StarkZapWallet> {
-  // Deterministically derive a Starknet keypair from the ZK proof hash
-  // Same phone/user always gets the same wallet
-  const seed = "0x" + zkProofHash.slice(0, 62);
-  const privateKey = hash.computePedersenHash(seed, "0x1");
-  const starkKey = ec.starkCurve.getStarkKey(privateKey);
-  const publicKey = "0x" + starkKey;
-
-  // Compute account address (OpenZeppelin account class hash)
-  const OZ_ACCOUNT_CLASS_HASH =
-    "0x061dac032f228abef9c6626f995015233097ae253a7f72d68552db02f2971b8f";
-  const constructorCallData = CallData.compile({ publicKey });
-  const address = hash.calculateContractAddressFromHash(
-    publicKey,
-    OZ_ACCOUNT_CLASS_HASH,
-    constructorCallData,
-    0
-  );
-
-  console.log("[StarkZap] Wallet derived:", address);
-
-  return { address, publicKey, privateKey };
-}
-
-// ── ZK Verification ────────────────────────────────────────────────────────
-
-export async function verifyPhoneProof(
-  proof: string,
-  nullifier: string
-): Promise<TransactionResult> {
-  const account = getServerAccount();
-  const proofFelt = "0x" + proof.slice(0, 62);
-  const nullifierFelt = "0x" + nullifier.slice(0, 62);
-
-  return executeMulticall(account, [
-    {
-      contractAddress: DEPLOYMENT.contracts.ZK_VERIFIER,
-      entrypoint: "verify_phone_proof",
-      calldata: CallData.compile({
-        proof: proofFelt,
-        nullifier: nullifierFelt,
-      }),
-    },
-  ]);
-}
-
 // ── Entity Operations ──────────────────────────────────────────────────────
 
 export async function addEntityOnChain(
   entityType: "place" | "creator" | "product",
   metadata: { name: string; description?: string; address?: string; category?: string }
 ): Promise<{ txHash: string; metadataHash: string }> {
-  let metadataHash: string;
-  try {
-    metadataHash = await uploadToIPFS(metadata);
-  } catch {
-    metadataHash = "Qm" + Array.from(crypto.getRandomValues(new Uint8Array(16)))
-      .map((b) => b.toString(36)).join("").slice(0, 32);
-    console.warn("[StarkZap] IPFS upload failed, using placeholder hash");
-  }
+  const metadataHash = await uploadToIPFS(metadata);
 
   const typeMap = { place: 1, creator: 2, product: 3 };
   const account = getServerAccount();
@@ -475,7 +403,7 @@ export async function addEntityOnChain(
 
   const result = await executeMulticall(account, [
     {
-      contractAddress: DEPLOYMENT.contracts.ENTITY,
+      contractAddress: getDeployment().contracts.ENTITY,
       entrypoint: "add_entity",
       calldata: CallData.compile({
         entity_type: typeMap[entityType],
@@ -496,23 +424,12 @@ export async function submitReviewOnChain(
   identityMode: "anonymous" | "pseudonymous" | "public",
   imageFile?: Blob | null
 ): Promise<{ txHash: string; contentHash: string; imageHash: string | null }> {
-  let contentHash: string;
-  try {
-    contentHash = await uploadToIPFS({ text: contentText, rating, timestamp: Date.now() });
-  } catch {
-    contentHash = "Qm" + Array.from(crypto.getRandomValues(new Uint8Array(16)))
-      .map((b) => b.toString(36)).join("").slice(0, 32);
-    console.warn("[StarkZap] IPFS upload failed, using placeholder hash");
-  }
+  const contentHash = await uploadToIPFS({ text: contentText, rating, timestamp: Date.now() });
 
   let imageHash: string | null = null;
   if (imageFile) {
-    try {
-      imageHash = await uploadFileToIPFS(imageFile, `review_${Date.now()}.jpg`);
-      console.log("[StarkZap] Image uploaded to IPFS:", imageHash);
-    } catch {
-      console.warn("[StarkZap] Image IPFS upload failed, skipping");
-    }
+    imageHash = await uploadFileToIPFS(imageFile, `review_${Date.now()}.jpg`);
+    console.log("[StarkZap] Image uploaded to IPFS:", imageHash);
   }
 
   const identityModeMap = { anonymous: 0, pseudonymous: 1, public: 2 };
@@ -523,7 +440,7 @@ export async function submitReviewOnChain(
 
   const result = await executeMulticall(account, [
     {
-      contractAddress: DEPLOYMENT.contracts.REVIEW,
+      contractAddress: getDeployment().contracts.REVIEW,
       entrypoint: "post_review",
       calldata: CallData.compile({
         entity_id: entityIdNum,
@@ -533,7 +450,7 @@ export async function submitReviewOnChain(
         image_hash: imageFelt,
       }),
     },
-  ]);
+  ], { usePaymaster: true });
 
   return { txHash: result.txHash, contentHash, imageHash };
 }
@@ -553,7 +470,7 @@ export async function castVoteOnChain(
 
   return executeMulticall(account, [
     {
-      contractAddress: DEPLOYMENT.contracts.VOTE,
+      contractAddress: getDeployment().contracts.VOTE,
       entrypoint: "react",
       calldata: CallData.compile({
         review_id: reviewIdNum,
@@ -574,7 +491,7 @@ export async function reportReviewOnChain(
 
   return executeMulticall(account, [
     {
-      contractAddress: DEPLOYMENT.contracts.REPORT,
+      contractAddress: getDeployment().contracts.REPORT,
       entrypoint: "report",
       calldata: CallData.compile({
         review_id: reviewIdNum,
@@ -587,38 +504,21 @@ export async function reportReviewOnChain(
 // ── Profile Operations ─────────────────────────────────────────────────────
 
 export async function createProfileOnChain(
-  pseudonym: string,
-  zkProofHash: string
+  pseudonym: string
 ): Promise<TransactionResult> {
   const account = getServerAccount();
   const pseudonymFelt = stringToFelt(pseudonym);
-  const proofFelt = "0x" + zkProofHash.slice(0, 62);
 
   return executeMulticall(account, [
     {
-      contractAddress: DEPLOYMENT.contracts.PROFILE,
+      contractAddress: getDeployment().contracts.PROFILE,
       entrypoint: "create_profile",
       calldata: CallData.compile({
         pseudonym: pseudonymFelt,
-        zk_proof_hash: proofFelt,
+        zk_proof_hash: "0x0",
       }),
     },
   ]);
-}
-
-// ── Session Keys ───────────────────────────────────────────────────────────
-
-export async function createSessionKey(
-  userAddress: string
-): Promise<SessionKey> {
-  console.log("[StarkZap] Creating session key for", userAddress);
-
-  return {
-    key: "sk_" + Array.from(crypto.getRandomValues(new Uint8Array(16)))
-      .map((b) => b.toString(16).padStart(2, "0")).join(""),
-    expiresAt: Date.now() + 4 * 60 * 60 * 1000,
-    permissions: ["vote", "report"],
-  };
 }
 
 // ── Multi-call Bundling ────────────────────────────────────────────────────
@@ -629,19 +529,11 @@ export async function bundledEntityAndReview(
   reviewText: string,
   rating: number,
   identityMode: "anonymous" | "pseudonymous" | "public"
-): Promise<{ txHash: string; metadataHash: string; contentHash: string }> {
-  let metadataHash: string;
-  let contentHash: string;
-
-  try {
-    [metadataHash, contentHash] = await Promise.all([
-      uploadToIPFS(entityMetadata),
-      uploadToIPFS({ text: reviewText, rating, timestamp: Date.now() }),
-    ]);
-  } catch {
-    metadataHash = "Qm" + Math.random().toString(36).slice(2, 34);
-    contentHash = "Qm" + Math.random().toString(36).slice(2, 34);
-  }
+): Promise<{ entityTxHash: string; reviewTxHash: string; metadataHash: string; contentHash: string }> {
+  const [metadataHash, contentHash] = await Promise.all([
+    uploadToIPFS(entityMetadata),
+    uploadToIPFS({ text: reviewText, rating, timestamp: Date.now() }),
+  ]);
 
   const typeMap = { place: 1, creator: 2, product: 3 };
   const identityModeMap = { anonymous: 0, pseudonymous: 1, public: 2 };
@@ -650,29 +542,38 @@ export async function bundledEntityAndReview(
   const metadataFelt = stringToFelt(metadataHash);
   const contentFelt = stringToFelt(contentHash);
 
-  const result = await executeMulticall(account, [
+  // Step 1: Create entity and get the real entity ID
+  const entityResult = await executeMulticall(account, [
     {
-      contractAddress: DEPLOYMENT.contracts.ENTITY,
+      contractAddress: getDeployment().contracts.ENTITY,
       entrypoint: "add_entity",
       calldata: CallData.compile({
         entity_type: typeMap[entityType],
         metadata_hash: metadataFelt,
       }),
     },
+  ]);
+
+  // Read the new entity count to determine the entity ID
+  const entityCount = await getEntityCount();
+  const newEntityId = Number(entityCount);
+
+  // Step 2: Post review with the real entity ID
+  const reviewResult = await executeMulticall(account, [
     {
-      contractAddress: DEPLOYMENT.contracts.REVIEW,
+      contractAddress: getDeployment().contracts.REVIEW,
       entrypoint: "post_review",
       calldata: CallData.compile({
-        entity_id: 0,
+        entity_id: newEntityId,
         content_hash: contentFelt,
         rating,
         identity_mode: identityModeMap[identityMode],
         image_hash: "0x0",
       }),
     },
-  ]);
+  ], { usePaymaster: true });
 
-  return { txHash: result.txHash, metadataHash, contentHash };
+  return { entityTxHash: entityResult.txHash, reviewTxHash: reviewResult.txHash, metadataHash, contentHash };
 }
 
 // ── Presence Operations ────────────────────────────────────────────────────
@@ -692,7 +593,7 @@ export async function createPresenceEventOnChain(
 
   return executeMulticall(account, [
     {
-      contractAddress: DEPLOYMENT.contracts.PRESENCE,
+      contractAddress: getDeployment().contracts.PRESENCE,
       entrypoint: "create_event",
       calldata: CallData.compile({
         entity_id: entityIdNum,
@@ -715,18 +616,10 @@ export async function submitPresenceProofOnChain(
   userLongitude: string,
   caption?: string
 ): Promise<{ txHash: string; photoHash: string }> {
-  let photoHash: string;
-  try {
-    if (photoFile) {
-      photoHash = await uploadFileToIPFS(photoFile, `proof_${Date.now()}.jpg`);
-    } else {
-      throw new Error("No photo");
-    }
-  } catch {
-    photoHash = "Qm" + Array.from(crypto.getRandomValues(new Uint8Array(16)))
-      .map((b) => b.toString(36)).join("").slice(0, 32);
-    console.warn("[StarkZap] Photo IPFS upload failed, using placeholder hash");
+  if (!photoFile) {
+    throw new Error("[StarkZap] Photo is required for presence proof");
   }
+  const photoHash = await uploadFileToIPFS(photoFile, `proof_${Date.now()}.jpg`);
 
   const account = getServerAccount();
   const entityIdNum = extractNumericId(entityId);
@@ -734,7 +627,7 @@ export async function submitPresenceProofOnChain(
 
   const result = await executeMulticall(account, [
     {
-      contractAddress: DEPLOYMENT.contracts.PRESENCE,
+      contractAddress: getDeployment().contracts.PRESENCE,
       entrypoint: "submit_proof",
       calldata: CallData.compile({
         entity_id: entityIdNum,
@@ -786,11 +679,6 @@ export async function profileExists(address: string): Promise<boolean> {
   return contract.call("profile_exists", [address]) as Promise<boolean>;
 }
 
-export async function isUserVerified(address: string): Promise<boolean> {
-  const contract = getContract("ZK_VERIFIER", ZK_VERIFIER_ABI);
-  return contract.call("is_verified", [address]) as Promise<boolean>;
-}
-
 export async function getPresenceEvent(eventId: number) {
   const contract = getContract("PRESENCE", PRESENCE_ABI);
   return contract.call("get_event", [eventId]);
@@ -835,32 +723,6 @@ export async function getTransactionStatus(
   } catch {
     return "pending";
   }
-}
-
-// ── Gas Estimation ─────────────────────────────────────────────────────────
-
-export function estimateGasCost(
-  action: "review" | "vote" | "report" | "entity" | "profile" | "presence" | "presence_event"
-): {
-  estimatedUSD: number;
-  paidBy: "developer";
-  paymaster: "AVNU";
-} {
-  const costs: Record<string, number> = {
-    review: 0.002,
-    vote: 0.0005,
-    report: 0.0005,
-    entity: 0.003,
-    profile: 0.002,
-    presence: 0.002,
-    presence_event: 0.003,
-  };
-
-  return {
-    estimatedUSD: costs[action] ?? 0.001,
-    paidBy: "developer",
-    paymaster: "AVNU",
-  };
 }
 
 // ── Utilities ──────────────────────────────────────────────────────────────

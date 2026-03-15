@@ -9,15 +9,10 @@ interface Props {
 export async function generateMetadata({ params }: Props) {
   const { slug } = await params;
 
-  let entity;
-  try {
-    entity = await prisma.entity.findUnique({
-      where: { slug },
-      select: { name: true, description: true, avgRating: true, reviewCount: true },
-    });
-  } catch {
-    // DB not available
-  }
+  const entity = await prisma.entity.findUnique({
+    where: { slug },
+    select: { name: true, description: true, avgRating: true, reviewCount: true },
+  });
 
   if (!entity) {
     return { title: "Place — Yap Me." };
@@ -47,47 +42,20 @@ export default async function PlacePage({ params }: Props) {
     hidden: boolean;
   }[] = [];
 
-  try {
-    entity = await prisma.entity.findUnique({
-      where: { slug },
-      include: {
-        reviews: {
-          orderBy: { createdAt: "desc" },
-        },
+  entity = await prisma.entity.findUnique({
+    where: { slug },
+    include: {
+      reviews: {
+        orderBy: { createdAt: "desc" },
       },
-    });
-
-    if (entity) {
-      reviews = entity.reviews;
-    }
-  } catch {
-    // DB not ready — show placeholder
-    entity = null;
-  }
+    },
+  });
 
   if (!entity) {
-    // Show a placeholder if DB isn't connected yet
-    return (
-      <EntityPageClient
-        entity={{
-          id: slug,
-          slug,
-          type: "place",
-          name: slug
-            .split("-")
-            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-            .join(" "),
-          category: null,
-          description: null,
-          address: null,
-          imageUrl: null,
-          avgRating: 0,
-          reviewCount: 0,
-        }}
-        reviews={[]}
-      />
-    );
+    notFound();
   }
+
+  reviews = entity.reviews;
 
   return (
     <EntityPageClient

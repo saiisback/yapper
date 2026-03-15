@@ -1,13 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  createInvisibleWallet,
-  verifyPhoneProof,
-  createSessionKey,
-  createProfileOnChain,
-} from "@/lib/starkzap";
+import { createProfileOnChain } from "@/lib/starkzap";
 
 const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID!;
-const PRIVY_APP_SECRET = process.env.PRIVY_APP_SECRET!;
 
 async function verifyPrivyToken(authToken: string) {
   const res = await fetch(`https://auth.privy.io/api/v1/users/me`, {
@@ -43,45 +37,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Generate ZK proof from Privy user ID
-    const encoder = new TextEncoder();
-    const userData = encoder.encode(userId + "yapper_zk_salt");
-    const proofBuffer = await crypto.subtle.digest("SHA-256", userData);
-    const proofHash = Array.from(new Uint8Array(proofBuffer))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-
-    const nullifierData = encoder.encode(userId + "yapper_nullifier");
-    const nullifierBuffer = await crypto.subtle.digest("SHA-256", nullifierData);
-    const nullifier = Array.from(new Uint8Array(nullifierBuffer))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-
-    // Submit ZK proof to Starknet
-    const zkResult = await verifyPhoneProof(proofHash, nullifier);
-    console.log("[StarkZap] ZK verification tx:", zkResult.txHash);
-
-    // Create invisible wallet
-    const wallet = await createInvisibleWallet(proofHash);
-    console.log("[StarkZap] Wallet created:", wallet.address);
+    // Use Privy's embedded wallet address
+    const walletAddress =
+      privyUser.linked_accounts?.find(
+        (a: { type: string }) => a.type === "wallet"
+      )?.address ?? privyUser.id;
 
     // Create on-chain profile
-    const profileResult = await createProfileOnChain(
-      "user_" + wallet.address.slice(2, 8),
-      proofHash
-    );
+    const pseudonym = "user_" + walletAddress.slice(2, 8);
+    const profileResult = await createProfileOnChain(pseudonym);
     console.log("[StarkZap] Profile tx:", profileResult.txHash);
 
-    // Generate session key
-    const sessionKey = await createSessionKey(wallet.address);
-
     const session = {
-      address: wallet.address,
-      publicKey: wallet.publicKey,
-      pseudonym: null,
-      sessionExpiry: sessionKey.expiresAt,
-      sessionKeyPermissions: sessionKey.permissions,
-      zkVerificationTx: zkResult.txHash,
+      address: walletAddress,
+      pseudonym,
       profileTx: profileResult.txHash,
     };
 

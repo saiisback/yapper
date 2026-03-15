@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { submitReviewOnChain, estimateGasCost } from "@/lib/starkzap";
+import { submitReviewOnChain } from "@/lib/starkzap";
 import { ipfsUrl } from "@/lib/ipfs";
 
 export async function GET(req: NextRequest) {
@@ -92,6 +92,13 @@ export async function POST(req: NextRequest) {
       authorAddress = body.authorAddress;
     }
 
+    if (!authorAddress) {
+      return NextResponse.json(
+        { error: "authorAddress is required" },
+        { status: 400 }
+      );
+    }
+
     if (!rating || !contentText) {
       return NextResponse.json(
         { error: "rating and contentText are required" },
@@ -147,10 +154,6 @@ export async function POST(req: NextRequest) {
     }
 
     // ── StarkZap: Submit review on-chain (gasless via AVNU Paymaster) ──
-    // This uploads content + optional image to IPFS and posts the review to the Starknet Review contract
-    const gasCost = estimateGasCost("review");
-    console.log(`[StarkZap] Submitting review on-chain (est. $${gasCost.estimatedUSD}, paid by ${gasCost.paidBy} via ${gasCost.paymaster})`);
-
     const { txHash, contentHash, imageHash } = await submitReviewOnChain(
       entityId,
       contentText,
@@ -168,7 +171,6 @@ export async function POST(req: NextRequest) {
     // The indexer will also sync this from on-chain events, but we write eagerly
     // for instant UI response (optimistic update pattern)
     const id = `review_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const address = authorAddress ?? `0x${Math.random().toString(16).slice(2, 18)}`;
 
     const review = await prisma.review.create({
       data: {
@@ -177,7 +179,7 @@ export async function POST(req: NextRequest) {
         contentHash,
         contentText,
         rating,
-        authorAddress: address,
+        authorAddress,
         authorName:
           identityMode === "anonymous"
             ? null
@@ -212,8 +214,6 @@ export async function POST(req: NextRequest) {
           txHash,
           contentHash,
           imageHash,
-          paymaster: "AVNU",
-          gasCost: gasCost.estimatedUSD,
         },
       },
       { status: 201 }

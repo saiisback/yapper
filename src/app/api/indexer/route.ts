@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { ipfsUrl } from "@/lib/ipfs";
 
 // Indexer webhook — receives on-chain events and updates the PostgreSQL cache
 // In production, this would be called by Apibara or a custom indexer service
@@ -9,6 +10,19 @@ interface OnChainEvent {
   data: Record<string, unknown>;
   blockNumber: number;
   txHash: string;
+}
+
+async function fetchFromIPFS(hash: string, timeout = 5000): Promise<unknown | null> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    const res = await fetch(ipfsUrl(hash), { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -36,8 +50,17 @@ export async function POST(req: NextRequest) {
           "3": "product",
         };
 
-        // Fetch metadata from IPFS
-        // const metadata = await fetch(ipfsUrl(metadataHash)).then(r => r.json());
+        // Fetch metadata from IPFS with timeout
+        const metadata = await fetchFromIPFS(metadataHash) as {
+          name?: string;
+          description?: string;
+        } | null;
+
+        const name = metadata?.name ?? `Entity ${entityId}`;
+        const slug = name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "") || `entity-${entityId}`;
 
         await prisma.entity.upsert({
           where: { id: entityId },
@@ -45,8 +68,9 @@ export async function POST(req: NextRequest) {
           create: {
             id: entityId,
             type: typeMap[entityType] ?? "place",
-            name: `Entity ${entityId}`,
-            slug: `entity-${entityId}`,
+            name,
+            slug,
+            description: metadata?.description ?? null,
             metadataHash,
             source: "user",
           },
@@ -65,8 +89,10 @@ export async function POST(req: NextRequest) {
             identityMode: string;
           };
 
-        // Fetch review content from IPFS
-        // const content = await fetch(ipfsUrl(contentHash)).then(r => r.json());
+        // Fetch review content from IPFS with timeout
+        const content = await fetchFromIPFS(contentHash) as {
+          text?: string;
+        } | null;
 
         await prisma.review.upsert({
           where: { id: reviewId },
@@ -75,7 +101,7 @@ export async function POST(req: NextRequest) {
             id: reviewId,
             entityId,
             contentHash,
-            contentText: "", // Populated from IPFS
+            contentText: content?.text ?? "",
             rating,
             authorAddress: author,
             identityMode,
@@ -168,9 +194,8 @@ export async function POST(req: NextRequest) {
       }
 
       case "UserVerified": {
-        const { address, zkProofHash } = event.data as {
+        const { address } = event.data as {
           address: string;
-          zkProofHash: string;
         };
 
         await prisma.userProfile.upsert({
@@ -178,14 +203,13 @@ export async function POST(req: NextRequest) {
           update: {},
           create: {
             address,
-            zkProofHash,
           },
         });
         break;
       }
 
       case "ProofRecorded": {
-        const { proofId, user, entityId, eventId, photoHash, timestamp } =
+        const { proofId, user, entityId, eventId, photoHash, timestamp, userLatitude, userLongitude } =
           event.data as {
             proofId: string;
             user: string;
@@ -193,6 +217,8 @@ export async function POST(req: NextRequest) {
             eventId: string;
             photoHash: string;
             timestamp: number;
+            userLatitude?: number;
+            userLongitude?: number;
           };
 
         await prisma.proof.upsert({
@@ -204,9 +230,9 @@ export async function POST(req: NextRequest) {
             entityId,
             eventId: eventId !== "0" ? eventId : null,
             photoHash,
-            photoUrl: `https://gateway.pinata.cloud/ipfs/${photoHash}`,
-            userLatitude: 0,
-            userLongitude: 0,
+            photoUrl: ipfsUrl(photoHash),
+            userLatitude: userLatitude ?? 0,
+            userLongitude: userLongitude ?? 0,
             txHash: event.txHash,
           },
         });
@@ -224,14 +250,28 @@ export async function POST(req: NextRequest) {
       }
 
       case "EventCreated": {
-        const { eventId, entityId, creator, startTime, endTime } =
+        const { eventId, entityId, nameHash, creator, startTime, endTime, latitude, longitude } =
           event.data as {
             eventId: string;
             entityId: string;
+            nameHash?: string;
             creator: string;
             startTime: number;
             endTime: number;
+            latitude?: number;
+            longitude?: number;
           };
+
+        // Fetch event name from IPFS with timeout
+        let eventName = `Event ${eventId}`;
+        if (nameHash) {
+          const nameData = await fetchFromIPFS(nameHash) as {
+            name?: string;
+          } | null;
+          if (nameData?.name) {
+            eventName = nameData.name;
+          }
+        }
 
         await prisma.presenceEvent.upsert({
           where: { id: eventId },
@@ -239,11 +279,11 @@ export async function POST(req: NextRequest) {
           create: {
             id: eventId,
             entityId,
-            name: `Event ${eventId}`,
+            name: eventName,
             startTime: new Date(startTime * 1000),
             endTime: new Date(endTime * 1000),
-            latitude: 0,
-            longitude: 0,
+            latitude: latitude ?? 0,
+            longitude: longitude ?? 0,
             creator,
             txHash: event.txHash,
           },

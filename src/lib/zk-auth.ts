@@ -4,8 +4,6 @@
 export interface AuthSession {
   address: string;
   pseudonym: string | null;
-  sessionExpiry: number;
-  sessionKeyPermissions: string[];
 }
 
 export function getSession(): AuthSession | null {
@@ -14,13 +12,7 @@ export function getSession(): AuthSession | null {
   const stored = localStorage.getItem("starkzap_session");
   if (!stored) return null;
 
-  const session: AuthSession = JSON.parse(stored);
-  if (Date.now() > session.sessionExpiry) {
-    localStorage.removeItem("starkzap_session");
-    return null;
-  }
-
-  return session;
+  return JSON.parse(stored);
 }
 
 export function setSession(session: AuthSession): void {

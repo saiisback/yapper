@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { createPresenceEventOnChain, estimateGasCost } from "@/lib/starkzap";
+import { createPresenceEventOnChain } from "@/lib/starkzap";
 import { uploadToIPFS } from "@/lib/ipfs";
 
 export async function GET(req: NextRequest) {
@@ -100,22 +100,13 @@ export async function POST(req: NextRequest) {
     const eventLng = longitude ?? entity.longitude ?? 0;
 
     // Upload event name to IPFS for on-chain reference
-    let nameHash: string;
-    try {
-      nameHash = await uploadToIPFS({ name, description });
-    } catch {
-      nameHash = "Qm" + Array.from(crypto.getRandomValues(new Uint8Array(16)))
-        .map((b) => b.toString(36))
-        .join("")
-        .slice(0, 32);
-    }
+    const nameHash = await uploadToIPFS({ name, description });
 
     const latScaled = Math.round(eventLat * 10000).toString();
     const lngScaled = Math.round(eventLng * 10000).toString();
     const startUnix = Math.floor(new Date(startTime).getTime() / 1000);
     const endUnix = Math.floor(new Date(endTime).getTime() / 1000);
 
-    const gasCost = estimateGasCost("presence_event");
     const result = await createPresenceEventOnChain(
       entityId,
       nameHash,
@@ -149,8 +140,6 @@ export async function POST(req: NextRequest) {
         onChain: {
           txHash: result.txHash,
           nameHash,
-          paymaster: "AVNU",
-          gasCost: gasCost.estimatedUSD,
         },
       },
       { status: 201 }

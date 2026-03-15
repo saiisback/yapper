@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { submitPresenceProofOnChain, estimateGasCost } from "@/lib/starkzap";
+import { submitPresenceProofOnChain } from "@/lib/starkzap";
 import { ipfsUrl } from "@/lib/ipfs";
 
 export async function POST(req: NextRequest) {
@@ -114,9 +114,6 @@ export async function POST(req: NextRequest) {
     const latScaled = Math.round(userLatitude * 10000).toString();
     const lngScaled = Math.round(userLongitude * 10000).toString();
 
-    const gasCost = estimateGasCost("presence");
-    console.log(`[StarkZap] Submitting proof on-chain (est. $${gasCost.estimatedUSD})`);
-
     const { txHash, photoHash } = await submitPresenceProofOnChain(
       entityId,
       eventId || "0",
@@ -157,8 +154,6 @@ export async function POST(req: NextRequest) {
         onChain: {
           txHash,
           photoHash,
-          paymaster: "AVNU",
-          gasCost: gasCost.estimatedUSD,
         },
       },
       { status: 201 }

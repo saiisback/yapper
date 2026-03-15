@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { castVoteOnChain, estimateGasCost } from "@/lib/starkzap";
+import { castVoteOnChain } from "@/lib/starkzap";
 
 const VALID_REACTIONS = ["fire", "skull", "love", "gross", "cap"] as const;
 type ReactionType = (typeof VALID_REACTIONS)[number];
@@ -18,9 +18,9 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { reviewId, voteType, voterAddress } = body;
 
-    if (!reviewId || !voteType) {
+    if (!reviewId || !voteType || !voterAddress) {
       return NextResponse.json(
-        { error: "reviewId and voteType are required" },
+        { error: "reviewId, voteType, and voterAddress are required" },
         { status: 400 }
       );
     }
@@ -32,25 +32,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const gasCost = estimateGasCost("vote");
-    console.log(`[StarkZap] Casting ${voteType} reaction on-chain (est. $${gasCost.estimatedUSD}, paid by ${gasCost.paidBy} via ${gasCost.paymaster})`);
-
     const result = await castVoteOnChain(reviewId, voteType as "fire" | "skull" | "love" | "gross" | "cap");
     console.log("[StarkZap] Vote tx confirmed:", result.txHash);
-
-    const address = voterAddress ?? `0x${Math.random().toString(16).slice(2, 18)}`;
 
     await prisma.vote.upsert({
       where: {
         reviewId_voterAddress: {
           reviewId,
-          voterAddress: address,
+          voterAddress,
         },
       },
       update: { voteType, txHash: result.txHash },
       create: {
         reviewId,
-        voterAddress: address,
+        voterAddress,
         voteType,
         txHash: result.txHash,
       },
@@ -82,7 +77,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       reactions: reactionCounts,
-      onChain: { txHash: result.txHash, paymaster: "AVNU", gasCost: gasCost.estimatedUSD },
+      onChain: { txHash: result.txHash },
     });
   } catch (error) {
     console.error("Error casting vote:", error);

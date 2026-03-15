@@ -25,8 +25,7 @@ interface Review {
   contentText: string;
   authorName: string | null;
   identityMode: string;
-  upvotes: number;
-  downvotes: number;
+  reactions: { fire: number; skull: number; love: number; gross: number; cap: number };
   createdAt: string;
   hidden: boolean;
 }

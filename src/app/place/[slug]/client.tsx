@@ -8,6 +8,7 @@ import { MapPin, PenLine, Eye, EyeOff, ChevronLeft, SlidersHorizontal, ExternalL
 import { usePrivy } from "@privy-io/react-auth";
 import { toast } from "sonner";
 import Link from "next/link";
+import { type ReactionType } from "@/components/ReactionBar";
 
 const STARKSCAN_TX_URL = "https://starkscan.co/tx/";
 
@@ -24,14 +25,21 @@ interface EntityData {
   reviewCount: number;
 }
 
+interface ReactionCounts {
+  fire: number;
+  skull: number;
+  love: number;
+  gross: number;
+  cap: number;
+}
+
 interface ReviewData {
   id: string;
   rating: number;
   contentText: string;
   authorName: string | null;
   identityMode: string;
-  upvotes: number;
-  downvotes: number;
+  reactions: ReactionCounts;
   createdAt: string;
   hidden: boolean;
   txHash?: string;
@@ -55,8 +63,11 @@ export function EntityPageClient({ entity, reviews: initialReviews }: Props) {
 
   const sortedReviews = [...visibleReviews].sort((a, b) => {
     switch (sortBy) {
-      case "helpful":
-        return b.upvotes - b.downvotes - (a.upvotes - a.downvotes);
+      case "helpful": {
+        const scoreA = a.reactions.fire * 1.5 + a.reactions.love * 1.2 + a.reactions.skull - a.reactions.cap;
+        const scoreB = b.reactions.fire * 1.5 + b.reactions.love * 1.2 + b.reactions.skull - b.reactions.cap;
+        return scoreB - scoreA;
+      }
       case "newest":
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       case "highest":
@@ -138,16 +149,19 @@ export function EntityPageClient({ entity, reviews: initialReviews }: Props) {
     }
   }
 
-  async function handleVote(reviewId: string, voteType: "up" | "down") {
+  async function handleReact(reviewId: string, reaction: ReactionType) {
     const voterAddress = user?.wallet?.address ?? user?.id;
 
+    // Optimistic update
     setReviews((prev) =>
       prev.map((r) => {
         if (r.id !== reviewId) return r;
         return {
           ...r,
-          upvotes: voteType === "up" ? r.upvotes + 1 : r.upvotes,
-          downvotes: voteType === "down" ? r.downvotes + 1 : r.downvotes,
+          reactions: {
+            ...r.reactions,
+            [reaction]: r.reactions[reaction] + 1,
+          },
         };
       })
     );
@@ -156,19 +170,19 @@ export function EntityPageClient({ entity, reviews: initialReviews }: Props) {
       const res = await fetch("/api/votes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reviewId, voteType, voterAddress }),
+        body: JSON.stringify({ reviewId, voteType: reaction, voterAddress }),
       });
 
       if (!res.ok) throw new Error("Vote failed");
 
       const result = await res.json();
-      setReviews((prev) =>
-        prev.map((r) =>
-          r.id === reviewId
-            ? { ...r, upvotes: result.upvotes, downvotes: result.downvotes }
-            : r
-        )
-      );
+      if (result.reactions) {
+        setReviews((prev) =>
+          prev.map((r) =>
+            r.id === reviewId ? { ...r, reactions: result.reactions } : r
+          )
+        );
+      }
       const voteTxHash = result.onChain?.txHash ?? result.txHash;
       if (voteTxHash) {
         toast.success(
@@ -186,13 +200,16 @@ export function EntityPageClient({ entity, reviews: initialReviews }: Props) {
         );
       }
     } catch {
+      // Rollback optimistic update
       setReviews((prev) =>
         prev.map((r) => {
           if (r.id !== reviewId) return r;
           return {
             ...r,
-            upvotes: voteType === "up" ? r.upvotes - 1 : r.upvotes,
-            downvotes: voteType === "down" ? r.downvotes - 1 : r.downvotes,
+            reactions: {
+              ...r.reactions,
+              [reaction]: Math.max(0, r.reactions[reaction] - 1),
+            },
           };
         })
       );
@@ -302,7 +319,7 @@ export function EntityPageClient({ entity, reviews: initialReviews }: Props) {
       <div className="space-y-4">
         {sortedReviews.length > 0 ? (
           sortedReviews.map((review, i) => (
-            <ReviewCard key={review.id} review={review} onVote={handleVote} colorIndex={i} />
+            <ReviewCard key={review.id} review={review} onReact={handleReact} colorIndex={i} />
           ))
         ) : (
           <div className="rounded-3xl bg-[#222222] border border-dashed border-[#333333] p-12 text-center">

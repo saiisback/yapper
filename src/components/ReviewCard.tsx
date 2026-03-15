@@ -5,7 +5,15 @@ import { EyeOff, User, Globe, AlertTriangle, ChevronDown, Calendar, ExternalLink
 
 const STARKSCAN_TX_URL = "https://starkscan.co/tx/"
 import { StarRating } from "@/components/StarRating"
-import { VoteButtons } from "@/components/VoteButtons"
+import { ReactionBar, type ReactionType } from "@/components/ReactionBar"
+
+interface ReactionCounts {
+  fire: number
+  skull: number
+  love: number
+  gross: number
+  cap: number
+}
 
 interface Review {
   id: string
@@ -13,8 +21,7 @@ interface Review {
   contentText: string
   authorName: string | null
   identityMode: string
-  upvotes: number
-  downvotes: number
+  reactions: ReactionCounts
   createdAt: string
   hidden: boolean
   txHash?: string
@@ -22,7 +29,7 @@ interface Review {
 
 interface ReviewCardProps {
   review: Review
-  onVote?: (reviewId: string, voteType: "up" | "down") => void
+  onReact?: (reviewId: string, reaction: ReactionType) => void
   colorIndex?: number
 }
 
@@ -69,7 +76,7 @@ function getIdentityDisplay(mode: string, name: string | null) {
   }
 }
 
-export function ReviewCard({ review, onVote, colorIndex }: ReviewCardProps) {
+export function ReviewCard({ review, onReact, colorIndex }: ReviewCardProps) {
   const [expanded, setExpanded] = useState(false)
   const identity = getIdentityDisplay(review.identityMode, review.authorName)
   const IdentityIcon = identity.icon
@@ -121,11 +128,11 @@ export function ReviewCard({ review, onVote, colorIndex }: ReviewCardProps) {
 
       {/* Footer */}
       <div className="flex items-center justify-between">
-        <VoteButtons
+        <ReactionBar
           reviewId={review.id}
-          upvotes={review.upvotes}
-          downvotes={review.downvotes}
-          onVote={onVote}
+          reactions={review.reactions}
+          onReact={onReact}
+          compact
         />
         <div className="flex items-center gap-2">
           {review.txHash && (

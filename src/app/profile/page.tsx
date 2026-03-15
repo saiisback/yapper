@@ -13,8 +13,7 @@ interface Review {
   contentText: string;
   authorName: string | null;
   identityMode: string;
-  upvotes: number;
-  downvotes: number;
+  reactions: { fire: number; skull: number; love: number; gross: number; cap: number };
   createdAt: string;
   hidden: boolean;
 }
@@ -81,7 +80,7 @@ export default function ProfilePage() {
     );
   }
 
-  const totalUpvotes = reviews.reduce((sum, r) => sum + r.upvotes, 0);
+  const totalReactions = reviews.reduce((sum, r) => sum + r.reactions.fire + r.reactions.love + r.reactions.skull, 0);
   const initials = displayName.slice(0, 2).toUpperCase();
 
   return (
@@ -142,11 +141,11 @@ export default function ProfilePage() {
               </span>
               <span className="flex items-center gap-1.5 rounded-full bg-white px-4 py-1.5 text-xs font-medium text-[#111111]">
                 <TrendingUp className="h-3 w-3" />
-                {totalUpvotes} upvotes
+                {totalReactions} reactions
               </span>
               <span className="flex items-center gap-1.5 rounded-full bg-white px-4 py-1.5 text-xs font-medium text-[#111111]">
                 <Star className="h-3 w-3" />
-                Rep: {totalUpvotes}
+                Rep: {totalReactions}
               </span>
             </div>
           </div>

@@ -16,11 +16,11 @@ const REACTION_FIELD_MAP: Record<ReactionType, string> = {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { reviewId, voteType, voterAddress } = body;
+    const { reviewId, voteType, voterAddress = "anonymous" } = body;
 
-    if (!reviewId || !voteType || !voterAddress) {
+    if (!reviewId || !voteType) {
       return NextResponse.json(
-        { error: "reviewId, voteType, and voterAddress are required" },
+        { error: "reviewId and voteType are required" },
         { status: 400 }
       );
     }

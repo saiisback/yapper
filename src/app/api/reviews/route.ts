@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 
     const orderBy: Record<string, string> =
       sort === "trending"
-        ? { upvotes: "desc" }
+        ? { fireCount: "desc" }
         : sort === "rating"
           ? { rating: "desc" }
           : { createdAt: "desc" };
@@ -36,6 +36,13 @@ export async function GET(req: NextRequest) {
     const fixed = reviews.map((r) => ({
       ...r,
       imageUrl: r.imageUrl ? fixLegacyIpfsUrl(r.imageUrl) : null,
+      reactions: {
+        fire: r.fireCount,
+        skull: r.skullCount,
+        love: r.loveCount,
+        gross: r.grossCount,
+        cap: r.capCount,
+      },
     }));
 
     return NextResponse.json({ reviews: fixed });

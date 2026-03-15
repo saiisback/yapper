@@ -143,14 +143,28 @@ export async function POST(req: NextRequest) {
     const latScaled = Math.round(userLatitude * 10000).toString();
     const lngScaled = Math.round(userLongitude * 10000).toString();
 
-    const { txHash, photoHash } = await submitPresenceProofOnChain(
-      entityId,
-      eventId || "0",
-      photoFile,
-      latScaled,
-      lngScaled,
-      caption
-    );
+    let txHash: string | null = null;
+    let photoHash = "";
+
+    try {
+      const onChainResult = await submitPresenceProofOnChain(
+        entityId,
+        eventId || "0",
+        photoFile,
+        latScaled,
+        lngScaled,
+        caption
+      );
+      txHash = onChainResult.txHash;
+      photoHash = onChainResult.photoHash;
+    } catch (onChainErr) {
+      console.warn("[Checkin] On-chain submission failed, saving off-chain only:", onChainErr);
+      // If on-chain fails, still upload photo to IPFS if provided
+      if (photoFile) {
+        const { uploadFileToIPFS } = await import("@/lib/ipfs");
+        photoHash = await uploadFileToIPFS(photoFile, `proof_${Date.now()}.jpg`);
+      }
+    }
 
     // Cache in PostgreSQL
     const id = `proof_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -160,8 +174,8 @@ export async function POST(req: NextRequest) {
         userId,
         entityId,
         eventId,
-        photoHash,
-        photoUrl: ipfsUrl(photoHash),
+        photoHash: photoHash || null,
+        photoUrl: photoHash ? ipfsUrl(photoHash) : "",
         caption,
         userLatitude,
         userLongitude,

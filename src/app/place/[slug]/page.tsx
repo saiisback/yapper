@@ -36,10 +36,14 @@ export default async function PlacePage({ params }: Props) {
     contentText: string;
     authorName: string | null;
     identityMode: string;
-    upvotes: number;
-    downvotes: number;
+    fireCount: number;
+    skullCount: number;
+    loveCount: number;
+    grossCount: number;
+    capCount: number;
     createdAt: Date;
     hidden: boolean;
+    txHash: string | null;
   }[] = [];
 
   entity = await prisma.entity.findUnique({
@@ -77,10 +81,16 @@ export default async function PlacePage({ params }: Props) {
         contentText: r.contentText,
         authorName: r.authorName,
         identityMode: r.identityMode,
-        upvotes: r.upvotes,
-        downvotes: r.downvotes,
+        reactions: {
+          fire: r.fireCount,
+          skull: r.skullCount,
+          love: r.loveCount,
+          gross: r.grossCount,
+          cap: r.capCount,
+        },
         createdAt: r.createdAt.toISOString(),
         hidden: r.hidden,
+        txHash: r.txHash ?? undefined,
       }))}
     />
   );

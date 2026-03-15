@@ -108,12 +108,12 @@ model Proof {
   entity        Entity         @relation(fields: [entityId], references: [id])
   eventId       String?
   event         PresenceEvent? @relation(fields: [eventId], references: [id])
-  photoHash     String
+  photoHash     String?
   photoUrl      String
   caption       String?
   userLatitude  Float
   userLongitude Float
-  txHash        String
+  txHash        String?
   createdAt     DateTime       @default(now())
 
   @@unique([userId, eventId])

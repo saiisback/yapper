@@ -192,7 +192,7 @@ export async function POST(req: NextRequest) {
       data: {
         id,
         entityId,
-        contentHash,
+        contentHash: contentHash ?? undefined,
         contentText,
         rating,
         authorAddress,

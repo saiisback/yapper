@@ -6,8 +6,37 @@ import {
   createProfileOnChain,
 } from "@/lib/starkzap";
 
-// Temporary in-memory OTP store (use Redis in production)
-const otpStore = new Map<string, { code: string; expiresAt: number }>();
+const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID!;
+const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN!;
+const TWILIO_VERIFY_SERVICE_SID = process.env.TWILIO_VERIFY_SERVICE_SID!;
+
+async function twilioVerifyRequest(phone: string) {
+  const url = `https://verify.twilio.com/v2/Services/${TWILIO_VERIFY_SERVICE_SID}/Verifications`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Authorization:
+        "Basic " + Buffer.from(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`).toString("base64"),
+    },
+    body: new URLSearchParams({ To: phone, Channel: "sms" }),
+  });
+  return res.json();
+}
+
+async function twilioVerifyCheck(phone: string, code: string) {
+  const url = `https://verify.twilio.com/v2/Services/${TWILIO_VERIFY_SERVICE_SID}/VerificationCheck`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Authorization:
+        "Basic " + Buffer.from(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`).toString("base64"),
+    },
+    body: new URLSearchParams({ To: phone, Code: code }),
+  });
+  return res.json();
+}
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -22,23 +51,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Generate 6-digit OTP
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    otpStore.set(phoneNumber, {
-      code,
-      expiresAt: Date.now() + 5 * 60 * 1000,
-    });
-
-    // In production: send via Twilio
-    // await twilioClient.messages.create({
-    //   body: `Your Yapper verification code: ${code}`,
-    //   from: process.env.TWILIO_PHONE_NUMBER,
-    //   to: phoneNumber,
-    // });
-
-    console.log(`[DEV] OTP for ${phoneNumber}: ${code}`);
-
-    return NextResponse.json({ success: true });
+    try {
+      const result = await twilioVerifyRequest(phoneNumber);
+      if (result.status === "pending") {
+        return NextResponse.json({ success: true });
+      }
+      console.error("[Twilio] Verification request failed:", result);
+      return NextResponse.json(
+        { error: "Failed to send verification code" },
+        { status: 500 }
+      );
+    } catch (err) {
+      console.error("[Twilio] Error:", err);
+      return NextResponse.json(
+        { error: "Failed to send verification code" },
+        { status: 500 }
+      );
+    }
   }
 
   if (action === "verify_otp") {
@@ -50,19 +79,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const stored = otpStore.get(phoneNumber);
-    if (!stored || stored.expiresAt < Date.now()) {
+    try {
+      const result = await twilioVerifyCheck(phoneNumber, code);
+      if (result.status !== "approved") {
+        return NextResponse.json(
+          { error: "Invalid or expired code" },
+          { status: 400 }
+        );
+      }
+    } catch (err) {
+      console.error("[Twilio] Verify check error:", err);
       return NextResponse.json(
-        { error: "OTP expired or not found" },
-        { status: 400 }
+        { error: "Verification failed" },
+        { status: 500 }
       );
     }
-
-    if (stored.code !== code) {
-      return NextResponse.json({ error: "Invalid code" }, { status: 400 });
-    }
-
-    otpStore.delete(phoneNumber);
 
     // ── StarkZap Integration ──
 

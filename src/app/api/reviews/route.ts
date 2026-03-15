@@ -44,7 +44,8 @@ export async function POST(req: NextRequest) {
   try {
     const contentType = req.headers.get("content-type") ?? "";
 
-    let entityId: string;
+    let entityId: string = "";
+    let subject: string | undefined;
     let rating: number;
     let contentText: string;
     let identityMode: string;
@@ -54,7 +55,8 @@ export async function POST(req: NextRequest) {
     if (contentType.includes("multipart/form-data")) {
       // Handle FormData (with optional photo upload)
       const formData = await req.formData();
-      entityId = formData.get("entityId") as string;
+      entityId = (formData.get("entityId") as string) || "";
+      subject = (formData.get("subject") as string) || undefined;
       rating = parseInt(formData.get("rating") as string);
       contentText = formData.get("contentText") as string;
       identityMode = (formData.get("identityMode") as string) ?? "anonymous";
@@ -83,17 +85,51 @@ export async function POST(req: NextRequest) {
       // Handle JSON body (no photo)
       const body = await req.json();
       entityId = body.entityId;
+      subject = body.subject;
       rating = body.rating;
       contentText = body.contentText;
       identityMode = body.identityMode ?? "anonymous";
       authorAddress = body.authorAddress;
     }
 
-    if (!entityId || !rating || !contentText) {
+    if (!rating || !contentText) {
       return NextResponse.json(
-        { error: "entityId, rating, and contentText are required" },
+        { error: "rating and contentText are required" },
         { status: 400 }
       );
+    }
+
+    if (!entityId && !subject) {
+      return NextResponse.json(
+        { error: "Either entityId or subject is required" },
+        { status: 400 }
+      );
+    }
+
+    // Auto-create entity from subject if no entityId provided
+    if (!entityId && subject) {
+      const slug = subject
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "");
+
+      // Find existing entity by slug or create a new one
+      const existing = await prisma.entity.findUnique({ where: { slug } });
+      if (existing) {
+        entityId = existing.id;
+      } else {
+        const newId = `entity_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        await prisma.entity.create({
+          data: {
+            id: newId,
+            type: "place",
+            name: subject.trim(),
+            slug,
+            source: "user",
+          },
+        });
+        entityId = newId;
+      }
     }
 
     if (rating < 1 || rating > 5) {

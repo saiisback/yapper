@@ -15,7 +15,6 @@ interface Entity {
 
 interface EntityCardProps {
   entity: Entity
-  colorIndex?: number
 }
 
 const CARD_COLORS = [
@@ -31,6 +30,14 @@ const AVATAR_COLORS = [
   "bg-emerald-500",
 ]
 
+function hashString(str: string): number {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0
+  }
+  return Math.abs(hash)
+}
+
 function getEntityHref(entity: Entity): string {
   switch (entity.type) {
     case "place":
@@ -44,8 +51,8 @@ function getEntityHref(entity: Entity): string {
   }
 }
 
-export function EntityCard({ entity, colorIndex = 0 }: EntityCardProps) {
-  const bgColor = CARD_COLORS[colorIndex % CARD_COLORS.length]
+export function EntityCard({ entity }: EntityCardProps) {
+  const bgColor = CARD_COLORS[hashString(entity.id) % CARD_COLORS.length]
 
   return (
     <Link href={getEntityHref(entity)} className="block group">

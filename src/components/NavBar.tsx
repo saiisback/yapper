@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Compass, Search, UserCircle, LogIn } from "lucide-react";
+import { Home, Compass, UserCircle, LogIn } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function NavBar() {
@@ -25,7 +25,6 @@ export function NavBar() {
   const navItems = [
     { href: "/", label: "Home", icon: Home },
     { href: "/explore", label: "Explore", icon: Compass },
-    { href: "/search", label: "Search", icon: Search },
     ...(isLoggedIn
       ? [{ href: "/profile", label: "Profile", icon: UserCircle }]
       : [{ href: "/login", label: "Login", icon: LogIn }]),

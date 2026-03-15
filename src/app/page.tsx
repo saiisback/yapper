@@ -1,217 +1,326 @@
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { SearchBar } from "@/components/SearchBar";
-import { EntityCard } from "@/components/EntityCard";
-import { ReviewCard } from "@/components/ReviewCard";
-import { MapPin, TrendingUp, Clock, ChevronRight, Plus } from "lucide-react";
+import { useEffect, useState, useCallback } from "react"
+import Link from "next/link"
+import { Plus, Flame, Clock, Sparkles, TrendingUp } from "lucide-react"
+import { ReactionBar, type ReactionType } from "@/components/ReactionBar"
+import { ReviewTakeover } from "@/components/ReviewTakeover"
+import { FloatingPrompt } from "@/components/FloatingPrompt"
+import { StarRating } from "@/components/StarRating"
+import { EyeOff, User, Globe } from "lucide-react"
 
-interface Entity {
-  id: string;
-  slug: string;
-  type: string;
-  name: string;
-  category: string | null;
-  address: string | null;
-  imageUrl: string | null;
-  avgRating: number;
-  reviewCount: number;
+interface ReactionCounts {
+  fire: number
+  skull: number
+  love: number
+  gross: number
+  cap: number
 }
 
-interface Review {
-  id: string;
-  rating: number;
-  contentText: string;
-  authorName: string | null;
-  identityMode: string;
-  upvotes: number;
-  downvotes: number;
-  createdAt: string;
-  hidden: boolean;
+interface FeedReview {
+  id: string
+  rating: number
+  contentText: string
+  authorName: string | null
+  identityMode: string
+  createdAt: string
+  hidden: boolean
+  entityName: string
+  entitySlug: string
+  entityType: string
+  entityImageUrl: string | null
+  entityCategory: string | null
+  reactions: ReactionCounts
+  tags: string[]
+  imageUrl: string | null
 }
 
-const CATEGORIES = [
-  "All",
-  "Restaurants",
-  "Cafes",
-  "Shops",
-  "Creators",
-  "Products",
-];
+const TRENDING_TAGS = [
+  "OverratedPlaces",
+  "HiddenGems",
+  "HonestReview",
+  "WorstService",
+  "Underrated",
+  "MustTry",
+  "NeverAgain",
+  "LocalFavorite",
+  "TouristTrap",
+  "BestInTown",
+]
+
+const FEED_FILTERS = [
+  { id: "foryou", label: "For You", icon: Sparkles },
+  { id: "trending", label: "Trending", icon: TrendingUp },
+  { id: "new", label: "New", icon: Clock },
+] as const
+
+const CARD_GRADIENTS = [
+  "from-lime/20 to-transparent",
+  "from-warm-yellow/20 to-transparent",
+  "from-coral/20 to-transparent",
+  "from-cool-gray/20 to-transparent",
+]
+
+const PLACEHOLDER_IMAGES = [
+  "linear-gradient(135deg, #D4E596 0%, #FFD874 100%)",
+  "linear-gradient(135deg, #FFD874 0%, #FF6B6B 100%)",
+  "linear-gradient(135deg, #FF6B6B 0%, #E0E4E8 100%)",
+  "linear-gradient(135deg, #E0E4E8 0%, #D4E596 100%)",
+]
+
+function timeAgo(dateStr: string): string {
+  const date = new Date(dateStr)
+  const now = new Date()
+  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+
+  if (seconds < 60) return "just now"
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h`
+  const days = Math.floor(hours / 24)
+  if (days < 30) return `${days}d`
+  const months = Math.floor(days / 30)
+  return `${months}mo`
+}
+
+function getIdentityIcon(mode: string) {
+  switch (mode) {
+    case "anonymous": return EyeOff
+    case "pseudonymous": return User
+    case "public": return Globe
+    default: return EyeOff
+  }
+}
+
+function getIdentityLabel(mode: string, name: string | null) {
+  switch (mode) {
+    case "anonymous": return "Anonymous"
+    case "pseudonymous": return name || "Pseudonymous"
+    case "public": return name || "Public User"
+    default: return "Anonymous"
+  }
+}
 
 export default function HomePage() {
-  const [nearbyPlaces, setNearbyPlaces] = useState<Entity[]>([]);
-  const [trendingReviews, setTrendingReviews] = useState<Review[]>([]);
-  const [recentEntities, setRecentEntities] = useState<Entity[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState("All");
-  const [loading, setLoading] = useState(true);
+  const [feed, setFeed] = useState<FeedReview[]>([])
+  const [loading, setLoading] = useState(true)
+  const [activeFilter, setActiveFilter] = useState<string>("foryou")
+  const [activeTag, setActiveTag] = useState<string | null>(null)
+  const [selectedReview, setSelectedReview] = useState<FeedReview | null>(null)
+
+  const fetchFeed = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({ limit: "30" })
+      if (activeFilter !== "foryou") params.set("filter", activeFilter)
+      if (activeTag) params.set("tag", activeTag)
+
+      const res = await fetch(`/api/feed?${params}`)
+      if (res.ok) {
+        const data = await res.json()
+        setFeed(data.feed ?? [])
+      }
+    } catch {
+      // API not ready yet
+    } finally {
+      setLoading(false)
+    }
+  }, [activeFilter, activeTag])
 
   useEffect(() => {
-    async function fetchData() {
-      try {
-        const [placesRes, reviewsRes] = await Promise.all([
-          fetch("/api/places?limit=8"),
-          fetch("/api/reviews?sort=trending&limit=6"),
-        ]);
+    fetchFeed()
+  }, [fetchFeed])
 
-        if (placesRes.ok) {
-          const placesData = await placesRes.json();
-          setNearbyPlaces(placesData.entities?.slice(0, 4) ?? []);
-          setRecentEntities(placesData.entities?.slice(4, 8) ?? []);
-        }
-
-        if (reviewsRes.ok) {
-          const reviewsData = await reviewsRes.json();
-          setTrendingReviews(reviewsData.reviews ?? []);
-        }
-      } catch {
-        // API not ready yet
-      } finally {
-        setLoading(false);
-      }
+  const handleReact = async (reviewId: string, reaction: ReactionType) => {
+    try {
+      await fetch("/api/votes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviewId, voteType: reaction }),
+      })
+      // Optimistic update
+      setFeed((prev) =>
+        prev.map((r) => {
+          if (r.id !== reviewId) return r
+          return {
+            ...r,
+            reactions: {
+              ...r.reactions,
+              [reaction]: r.reactions[reaction] + 1,
+            },
+          }
+        })
+      )
+    } catch {
+      // silent fail
     }
-
-    fetchData();
-  }, []);
+  }
 
   return (
-    <div className="mx-auto max-w-7xl px-5 py-6 sm:px-6 lg:px-8">
-      {/* Top row */}
-      <section className="mb-8 flex items-center justify-between">
-        <Link
-          href="/explore"
-          className="flex items-center gap-2 rounded-full bg-warm-yellow px-5 py-2.5 text-sm font-semibold text-[#111111] transition-all hover:brightness-110"
-        >
-          <Plus className="size-4" />
-          Add a Place
-        </Link>
-        <div className="flex size-11 items-center justify-center rounded-full bg-[#222222]">
-          <span className="text-sm font-bold text-white">Y</span>
+    <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+      {/* Top bar — logo + add button */}
+      <section className="mb-5 flex items-center justify-between">
+        <span className="text-xl font-bold tracking-tight text-warm-yellow">Yapper.</span>
+      </section>
+
+      {/* Trending tags — horizontal scroll */}
+      <section className="mb-5">
+        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+          {TRENDING_TAGS.map((tag) => (
+            <button
+              key={tag}
+              onClick={() => setActiveTag(activeTag === tag ? null : tag)}
+              className={`shrink-0 rounded-full px-4 py-2 text-xs font-medium transition-all ${
+                activeTag === tag
+                  ? "bg-warm-yellow text-[#111111]"
+                  : "bg-[#222222] text-[#A0A0A0] hover:text-white hover:bg-[#2A2A2A]"
+              }`}
+            >
+              #{tag}
+            </button>
+          ))}
         </div>
       </section>
 
-      {/* Heading */}
-      <section className="mb-2">
-        <h1 className="text-4xl font-extrabold tracking-tight text-white leading-tight">
-          Discover &<br />Review Places
-        </h1>
+      {/* Feed filter pills */}
+      <section className="mb-6 flex gap-2">
+        {FEED_FILTERS.map((f) => {
+          const Icon = f.icon
+          return (
+            <button
+              key={f.id}
+              onClick={() => setActiveFilter(f.id)}
+              className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition-all ${
+                activeFilter === f.id
+                  ? "bg-white text-[#111111]"
+                  : "bg-transparent text-[#A0A0A0] border border-[#333333] hover:border-[#A0A0A0]"
+              }`}
+            >
+              <Icon className="size-3.5" />
+              {f.label}
+            </button>
+          )
+        })}
       </section>
 
-      <div className="mb-6 flex items-center justify-between">
-        <p className="text-sm text-[#A0A0A0]">Find and rate the best spots</p>
-        <Link href="/explore" className="text-sm font-medium text-[#A0A0A0] hover:text-warm-yellow transition-colors">
-          See all
-        </Link>
-      </div>
-
-      {/* Category pills — horizontal scroll */}
-      <div className="mb-6 flex gap-2 overflow-x-auto pb-2 scrollbar-none">
-        {CATEGORIES.map((cat) => (
-          <button
-            key={cat}
-            className={`shrink-0 rounded-full px-5 py-2.5 text-sm font-medium transition-all border ${
-              selectedCategory === cat
-                ? "bg-warm-yellow text-[#111111] border-warm-yellow"
-                : "bg-transparent text-[#A0A0A0] border-[#333333] hover:border-[#A0A0A0]"
-            }`}
-            onClick={() => setSelectedCategory(cat)}
-          >
-            {cat}
-          </button>
-        ))}
-      </div>
-
-      {/* Search */}
-      <div className="mb-10">
-        <SearchBar placeholder="Search restaurants, cafes, creators..." />
-      </div>
-
+      {/* Masonry grid */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-warm-yellow border-t-transparent" />
         </div>
+      ) : feed.length > 0 ? (
+        <div className="columns-2 gap-3 md:columns-3 lg:columns-4 [&>*]:mb-3">
+          {feed.map((review, i) => {
+            const IdentityIcon = getIdentityIcon(review.identityMode)
+            const gradient = CARD_GRADIENTS[i % CARD_GRADIENTS.length]
+            const placeholderBg = PLACEHOLDER_IMAGES[i % PLACEHOLDER_IMAGES.length]
+            const hasImage = review.entityImageUrl || review.imageUrl
+
+            return (
+              <div
+                key={review.id}
+                className="group cursor-pointer break-inside-avoid overflow-hidden rounded-2xl bg-[#222222] transition-all duration-200 hover:scale-[1.02] hover:shadow-xl hover:shadow-black/30"
+                onClick={() => setSelectedReview(review)}
+              >
+                {/* Image or gradient placeholder */}
+                <div
+                  className={`relative w-full overflow-hidden ${
+                    // Vary heights for masonry effect
+                    i % 3 === 0 ? "aspect-[3/4]" : i % 3 === 1 ? "aspect-square" : "aspect-[4/3]"
+                  }`}
+                >
+                  {hasImage ? (
+                    <img
+                      src={(review.imageUrl || review.entityImageUrl)!}
+                      alt={review.entityName}
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    />
+                  ) : (
+                    <div
+                      className="h-full w-full"
+                      style={{ background: placeholderBg }}
+                    />
+                  )}
+
+                  {/* Entity name overlay */}
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3 pt-8">
+                    <p className="text-xs font-bold text-white drop-shadow-md line-clamp-1">
+                      {review.entityName}
+                    </p>
+                  </div>
+
+                  {/* Rating badge */}
+                  <div className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-black/50 px-2 py-0.5 backdrop-blur-sm">
+                    <StarRating value={review.rating} size="sm" readonly />
+                  </div>
+                </div>
+
+                {/* Review content */}
+                <div className={`bg-gradient-to-b ${gradient} p-3`}>
+                  {/* Review snippet */}
+                  <p className="mb-2 text-xs leading-relaxed text-white/80 line-clamp-3">
+                    {review.contentText}
+                  </p>
+
+                  {/* Tags */}
+                  {review.tags.length > 0 && (
+                    <div className="mb-2 flex flex-wrap gap-1">
+                      {review.tags.slice(0, 2).map((tag) => (
+                        <span
+                          key={tag}
+                          className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-medium text-warm-yellow"
+                        >
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Footer: author + reactions */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <IdentityIcon className="size-3 text-[#A0A0A0]" />
+                      <span className="text-[10px] text-[#A0A0A0] line-clamp-1 max-w-[60px]">
+                        {getIdentityLabel(review.identityMode, review.authorName)}
+                      </span>
+                      <span className="text-[10px] text-[#555555]">
+                        {timeAgo(review.createdAt)}
+                      </span>
+                    </div>
+                    <ReactionBar
+                      reviewId={review.id}
+                      reactions={review.reactions}
+                      onReact={handleReact}
+                      compact
+                    />
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
       ) : (
-        <>
-          {/* Near You */}
-          <section className="mb-12">
-            <div className="mb-5 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex size-9 items-center justify-center rounded-full bg-coral/20">
-                  <MapPin className="h-4 w-4 text-coral" />
-                </div>
-                <h2 className="text-2xl font-bold tracking-tight text-white">Near You</h2>
-              </div>
-              <Link href="/explore" className="flex items-center gap-1 text-sm font-medium text-[#A0A0A0] hover:text-warm-yellow transition-colors">
-                See all <ChevronRight className="size-4" />
-              </Link>
-            </div>
-            {nearbyPlaces.length > 0 ? (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {nearbyPlaces.map((entity, i) => (
-                  <EntityCard key={entity.id} entity={entity} colorIndex={i} />
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-3xl bg-[#222222] border border-dashed border-[#333333] p-12 text-center">
-                <MapPin className="mx-auto mb-3 h-10 w-10 text-[#A0A0A0]/30" />
-                <p className="text-[#A0A0A0]">No places found yet. Be the first to add one!</p>
-              </div>
-            )}
-          </section>
+        <div className="flex flex-col items-center justify-center py-20">
+          <div className="flex size-16 items-center justify-center rounded-full bg-[#222222] mb-4">
+            <Flame className="size-7 text-[#A0A0A0]/30" />
+          </div>
+          <p className="text-[#A0A0A0] text-sm mb-1">No reviews yet</p>
+          <p className="text-[#555555] text-xs">Be the first to review something!</p>
+        </div>
+      )}
 
-          {/* Trending Reviews */}
-          <section className="mb-12">
-            <div className="mb-5 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex size-9 items-center justify-center rounded-full bg-warm-yellow/20">
-                  <TrendingUp className="h-4 w-4 text-warm-yellow" />
-                </div>
-                <h2 className="text-2xl font-bold tracking-tight text-white">Trending Reviews</h2>
-              </div>
-            </div>
-            {trendingReviews.length > 0 ? (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {trendingReviews.map((review, i) => (
-                  <ReviewCard key={review.id} review={review} colorIndex={i} />
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-3xl bg-[#222222] border border-dashed border-[#333333] p-12 text-center">
-                <TrendingUp className="mx-auto mb-3 h-10 w-10 text-[#A0A0A0]/30" />
-                <p className="text-[#A0A0A0]">No reviews yet. Write the first review!</p>
-              </div>
-            )}
-          </section>
+      {/* Floating "review anything" prompt */}
+      <FloatingPrompt />
 
-          {/* Recently Added */}
-          <section className="mb-12">
-            <div className="mb-5 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex size-9 items-center justify-center rounded-full bg-lime/20">
-                  <Clock className="h-4 w-4 text-lime" />
-                </div>
-                <h2 className="text-2xl font-bold tracking-tight text-white">Recently Added</h2>
-              </div>
-              <Link href="/explore" className="flex items-center gap-1 text-sm font-medium text-[#A0A0A0] hover:text-warm-yellow transition-colors">
-                See all <ChevronRight className="size-4" />
-              </Link>
-            </div>
-            {recentEntities.length > 0 ? (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {recentEntities.map((entity, i) => (
-                  <EntityCard key={entity.id} entity={entity} colorIndex={i + 2} />
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-3xl bg-[#222222] border border-dashed border-[#333333] p-12 text-center">
-                <Clock className="mx-auto mb-3 h-10 w-10 text-[#A0A0A0]/30" />
-                <p className="text-[#A0A0A0]">Nothing here yet. Start exploring!</p>
-              </div>
-            )}
-          </section>
-        </>
+      {/* Full-screen takeover */}
+      {selectedReview && (
+        <ReviewTakeover
+          review={selectedReview}
+          onClose={() => setSelectedReview(null)}
+          onReact={handleReact}
+        />
       )}
     </div>
-  );
+  )
 }

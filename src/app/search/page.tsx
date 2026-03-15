@@ -143,7 +143,7 @@ function SearchResults() {
             {getActiveEntities().length > 0 ? (
               <div className="grid gap-4 sm:grid-cols-2">
                 {getActiveEntities().map((e, i) => (
-                  <EntityCard key={e.id} entity={e} colorIndex={i} />
+                  <EntityCard key={e.id} entity={e} />
                 ))}
               </div>
             ) : (

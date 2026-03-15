@@ -1,0 +1,282 @@
+"use client";
+
+import { useState } from "react";
+import { StarRating } from "@/components/StarRating";
+import { ReviewCard } from "@/components/ReviewCard";
+import { ReviewForm } from "@/components/ReviewForm";
+import { MapPin, PenLine, Eye, EyeOff, ChevronLeft, SlidersHorizontal } from "lucide-react";
+import { toast } from "sonner";
+import Link from "next/link";
+
+interface EntityData {
+  id: string;
+  slug: string;
+  type: string;
+  name: string;
+  category: string | null;
+  description: string | null;
+  address: string | null;
+  imageUrl: string | null;
+  avgRating: number;
+  reviewCount: number;
+}
+
+interface ReviewData {
+  id: string;
+  rating: number;
+  contentText: string;
+  authorName: string | null;
+  identityMode: string;
+  upvotes: number;
+  downvotes: number;
+  createdAt: string;
+  hidden: boolean;
+  txHash?: string;
+}
+
+interface Props {
+  entity: EntityData;
+  reviews: ReviewData[];
+}
+
+export function EntityPageClient({ entity, reviews: initialReviews }: Props) {
+  const [reviews, setReviews] = useState(initialReviews);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [showHidden, setShowHidden] = useState(false);
+  const [sortBy, setSortBy] = useState("helpful");
+
+  const visibleReviews = showHidden
+    ? reviews
+    : reviews.filter((r) => !r.hidden);
+
+  const sortedReviews = [...visibleReviews].sort((a, b) => {
+    switch (sortBy) {
+      case "helpful":
+        return b.upvotes - b.downvotes - (a.upvotes - a.downvotes);
+      case "newest":
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      case "highest":
+        return b.rating - a.rating;
+      case "lowest":
+        return a.rating - b.rating;
+      default:
+        return 0;
+    }
+  });
+
+  const hiddenCount = reviews.filter((r) => r.hidden).length;
+
+  async function handleSubmitReview(data: {
+    rating: number;
+    text: string;
+    identityMode: string;
+  }) {
+    const session = localStorage.getItem("starkzap_session");
+    const authorAddress = session ? JSON.parse(session).address : undefined;
+
+    try {
+      const res = await fetch("/api/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entityId: entity.id,
+          rating: data.rating,
+          contentText: data.text,
+          identityMode: data.identityMode,
+          authorAddress,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to post review");
+
+      const result = await res.json();
+      setReviews((prev) => [result, ...prev]);
+      setShowReviewForm(false);
+      toast.success("Review posted successfully!");
+    } catch {
+      toast.error("Failed to post review. Please try again.");
+    }
+  }
+
+  async function handleVote(reviewId: string, voteType: "up" | "down") {
+    const session = localStorage.getItem("starkzap_session");
+    const voterAddress = session ? JSON.parse(session).address : undefined;
+
+    setReviews((prev) =>
+      prev.map((r) => {
+        if (r.id !== reviewId) return r;
+        return {
+          ...r,
+          upvotes: voteType === "up" ? r.upvotes + 1 : r.upvotes,
+          downvotes: voteType === "down" ? r.downvotes + 1 : r.downvotes,
+        };
+      })
+    );
+
+    try {
+      const res = await fetch("/api/votes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviewId, voteType, voterAddress }),
+      });
+
+      if (!res.ok) throw new Error("Vote failed");
+
+      const result = await res.json();
+      setReviews((prev) =>
+        prev.map((r) =>
+          r.id === reviewId
+            ? { ...r, upvotes: result.upvotes, downvotes: result.downvotes }
+            : r
+        )
+      );
+    } catch {
+      setReviews((prev) =>
+        prev.map((r) => {
+          if (r.id !== reviewId) return r;
+          return {
+            ...r,
+            upvotes: voteType === "up" ? r.upvotes - 1 : r.upvotes,
+            downvotes: voteType === "down" ? r.downvotes - 1 : r.downvotes,
+          };
+        })
+      );
+      toast.error("Failed to cast vote");
+    }
+  }
+
+  return (
+    <div className="mx-auto max-w-4xl px-5 py-6 sm:px-6 lg:px-8">
+      {/* Top bar */}
+      <div className="mb-6 flex items-center justify-between">
+        <Link href="/explore" className="flex size-11 items-center justify-center rounded-full bg-[#222222] text-[#A0A0A0] hover:text-white transition-colors">
+          <ChevronLeft className="size-5" />
+        </Link>
+        <button
+          onClick={() => setShowReviewForm(true)}
+          className="flex items-center gap-2 rounded-full bg-[#222222] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#2A2A2A] transition-colors"
+        >
+          <PenLine className="size-4" />
+          Write Review
+        </button>
+      </div>
+
+      {/* Hero Image */}
+      {entity.imageUrl && (
+        <div className="mb-6 h-56 overflow-hidden rounded-3xl sm:h-72">
+          <img
+            src={entity.imageUrl}
+            alt={entity.name}
+            className="h-full w-full object-cover"
+          />
+        </div>
+      )}
+
+      {/* Entity detail card — lime green like reference */}
+      <div className="mb-8 rounded-3xl bg-lime p-6">
+        <h1 className="mb-2 text-2xl font-extrabold tracking-tight text-[#111111]">{entity.name}</h1>
+
+        {entity.description && (
+          <p className="mb-4 text-sm leading-relaxed text-[#111111]/70">
+            {entity.description}
+          </p>
+        )}
+
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          {entity.category && (
+            <span className="rounded-full bg-white px-4 py-1.5 text-xs font-medium text-[#111111]">
+              {entity.category}
+            </span>
+          )}
+          <span className="rounded-full bg-white px-4 py-1.5 text-xs font-medium capitalize text-[#111111]">
+            {entity.type}
+          </span>
+        </div>
+
+        {entity.address && (
+          <p className="mb-5 flex items-center gap-1.5 text-sm text-[#111111]/60">
+            <MapPin className="h-4 w-4 shrink-0" />
+            {entity.address}
+          </p>
+        )}
+
+        {/* Rating pill */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 rounded-full bg-[#111111] px-5 py-2.5">
+            <span className="text-lg font-bold text-warm-yellow">
+              {entity.avgRating.toFixed(1)}
+            </span>
+            <StarRating value={entity.avgRating} readonly size="sm" />
+          </div>
+          <span className="text-sm text-[#111111]/60">
+            {entity.reviewCount} review{entity.reviewCount !== 1 ? "s" : ""}
+          </span>
+        </div>
+      </div>
+
+      {/* Review Form */}
+      {showReviewForm && (
+        <div className="mb-8">
+          <ReviewForm
+            entityId={entity.id}
+            entityName={entity.name}
+            onSubmit={handleSubmitReview}
+            onCancel={() => setShowReviewForm(false)}
+          />
+        </div>
+      )}
+
+      {/* Reviews section */}
+      <div className="mb-5 flex items-center justify-between">
+        <h2 className="text-2xl font-bold tracking-tight text-white">Reviews</h2>
+        <div className="flex items-center gap-2 rounded-full bg-[#111111] px-4 py-2">
+          <SlidersHorizontal className="size-4 text-[#A0A0A0]" />
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="bg-transparent text-sm font-medium text-white outline-none"
+          >
+            <option value="helpful" className="bg-[#222222]">Most Helpful</option>
+            <option value="newest" className="bg-[#222222]">Newest</option>
+            <option value="highest" className="bg-[#222222]">Highest Rated</option>
+            <option value="lowest" className="bg-[#222222]">Lowest Rated</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {sortedReviews.length > 0 ? (
+          sortedReviews.map((review, i) => (
+            <ReviewCard key={review.id} review={review} onVote={handleVote} colorIndex={i} />
+          ))
+        ) : (
+          <div className="rounded-3xl bg-[#222222] border border-dashed border-[#333333] p-12 text-center">
+            <PenLine className="mx-auto mb-3 h-10 w-10 text-[#A0A0A0]/30" />
+            <p className="text-[#A0A0A0]">No reviews yet. Be the first to share your experience!</p>
+          </div>
+        )}
+      </div>
+
+      {hiddenCount > 0 && (
+        <div className="mt-6 text-center">
+          <button
+            className="inline-flex items-center gap-2 rounded-full bg-[#222222] px-5 py-2.5 text-sm text-[#A0A0A0] transition-colors hover:text-white"
+            onClick={() => setShowHidden(!showHidden)}
+          >
+            {showHidden ? (
+              <>
+                <EyeOff className="size-4" />
+                Hide community-hidden reviews
+              </>
+            ) : (
+              <>
+                <Eye className="size-4" />
+                Show {hiddenCount} hidden review{hiddenCount !== 1 ? "s" : ""}
+              </>
+            )}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}

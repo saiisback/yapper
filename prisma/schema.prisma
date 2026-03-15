@@ -1,0 +1,72 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Entity {
+  id           String   @id
+  type         String   // "place" | "creator" | "product"
+  name         String
+  slug         String   @unique
+  description  String?
+  metadataHash String?
+  latitude     Float?
+  longitude    Float?
+  address      String?
+  category     String?
+  imageUrl     String?
+  avgRating    Float    @default(0)
+  reviewCount  Int      @default(0)
+  createdAt    DateTime @default(now())
+  reviews      Review[]
+  source       String   @default("user") // "google_places" | "user"
+}
+
+model Review {
+  id            String   @id
+  entityId      String
+  entity        Entity   @relation(fields: [entityId], references: [id])
+  contentHash   String
+  contentText   String
+  rating        Int      // 1-5
+  authorAddress String
+  authorName    String?
+  identityMode  String   // "anonymous" | "pseudonymous" | "public"
+  upvotes       Int      @default(0)
+  downvotes     Int      @default(0)
+  reportCount   Int      @default(0)
+  hidden        Boolean  @default(false)
+  txHash        String
+  createdAt     DateTime @default(now())
+  votes         Vote[]
+
+  @@index([entityId])
+  @@index([authorAddress])
+}
+
+model Vote {
+  id           String   @id @default(cuid())
+  reviewId     String
+  review       Review   @relation(fields: [reviewId], references: [id])
+  voterAddress String
+  voteType     String   // "up" | "down"
+  txHash       String
+  createdAt    DateTime @default(now())
+
+  @@unique([reviewId, voterAddress])
+}
+
+model UserProfile {
+  address     String   @id
+  pseudonym   String?  @unique
+  bio         String?
+  avatarUrl   String?
+  reviewCount Int      @default(0)
+  reputation  Int      @default(0)
+  zkProofHash String
+  createdAt   DateTime @default(now())
+}

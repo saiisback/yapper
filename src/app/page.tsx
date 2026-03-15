@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import Link from "next/link"
 import { Plus, Flame, Clock, Sparkles, TrendingUp } from "lucide-react"
 import { ReactionBar, type ReactionType } from "@/components/ReactionBar"
@@ -204,72 +204,75 @@ export default function HomePage() {
         })}
       </section>
 
-      {/* Masonry grid */}
+      {/* Vertical feed */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-warm-yellow border-t-transparent" />
         </div>
       ) : feed.length > 0 ? (
-        <div className="columns-2 gap-3 md:columns-3 lg:columns-4 [&>*]:mb-3">
+        <div className="flex flex-col gap-5 max-w-lg mx-auto">
           {feed.map((review, i) => {
             const IdentityIcon = getIdentityIcon(review.identityMode)
             const gradient = CARD_GRADIENTS[i % CARD_GRADIENTS.length]
             const placeholderBg = PLACEHOLDER_IMAGES[i % PLACEHOLDER_IMAGES.length]
-            const hasImage = review.entityImageUrl || review.imageUrl
+            const imageUrl = review.imageUrl || review.entityImageUrl
 
             return (
               <div
                 key={review.id}
-                className="group cursor-pointer break-inside-avoid overflow-hidden rounded-2xl bg-[#222222] transition-all duration-200 hover:scale-[1.02] hover:shadow-xl hover:shadow-black/30"
+                className="group cursor-pointer overflow-hidden rounded-2xl bg-[#222222] transition-all duration-200 active:scale-[0.98]"
                 onClick={() => setSelectedReview(review)}
               >
                 {/* Image or gradient placeholder */}
-                <div
-                  className={`relative w-full overflow-hidden ${
-                    // Vary heights for masonry effect
-                    i % 3 === 0 ? "aspect-[3/4]" : i % 3 === 1 ? "aspect-square" : "aspect-[4/3]"
-                  }`}
-                >
-                  {hasImage ? (
+                <div className="relative w-full overflow-hidden aspect-[4/3]">
+                  {imageUrl ? (
                     <img
-                      src={(review.imageUrl || review.entityImageUrl)!}
+                      src={imageUrl}
                       alt={review.entityName}
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      className="h-full w-full object-cover"
+                      onError={(e) => {
+                        const target = e.currentTarget
+                        target.style.display = "none"
+                        const fallback = target.nextElementSibling as HTMLElement
+                        if (fallback) fallback.style.display = "block"
+                      }}
                     />
-                  ) : (
-                    <div
-                      className="h-full w-full"
-                      style={{ background: placeholderBg }}
-                    />
-                  )}
+                  ) : null}
+                  <div
+                    className="h-full w-full absolute inset-0"
+                    style={{
+                      background: placeholderBg,
+                      display: imageUrl ? "none" : "block",
+                    }}
+                  />
 
                   {/* Entity name overlay */}
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3 pt-8">
-                    <p className="text-xs font-bold text-white drop-shadow-md line-clamp-1">
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 pt-10">
+                    <p className="text-sm font-bold text-white drop-shadow-md line-clamp-1">
                       {review.entityName}
                     </p>
                   </div>
 
                   {/* Rating badge */}
-                  <div className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-black/50 px-2 py-0.5 backdrop-blur-sm">
+                  <div className="absolute top-3 right-3 flex items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 backdrop-blur-sm">
                     <StarRating value={review.rating} size="sm" readonly />
                   </div>
                 </div>
 
                 {/* Review content */}
-                <div className={`bg-gradient-to-b ${gradient} p-3`}>
+                <div className={`bg-gradient-to-b ${gradient} p-4`}>
                   {/* Review snippet */}
-                  <p className="mb-2 text-xs leading-relaxed text-white/80 line-clamp-3">
+                  <p className="mb-3 text-sm leading-relaxed text-white/80 line-clamp-4">
                     {review.contentText}
                   </p>
 
                   {/* Tags */}
                   {review.tags.length > 0 && (
-                    <div className="mb-2 flex flex-wrap gap-1">
-                      {review.tags.slice(0, 2).map((tag) => (
+                    <div className="mb-3 flex flex-wrap gap-1.5">
+                      {review.tags.slice(0, 3).map((tag) => (
                         <span
                           key={tag}
-                          className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-medium text-warm-yellow"
+                          className="rounded-full bg-white/10 px-2.5 py-0.5 text-xs font-medium text-warm-yellow"
                         >
                           #{tag}
                         </span>
@@ -280,11 +283,11 @@ export default function HomePage() {
                   {/* Footer: author + reactions */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
-                      <IdentityIcon className="size-3 text-[#A0A0A0]" />
-                      <span className="text-[10px] text-[#A0A0A0] line-clamp-1 max-w-[60px]">
+                      <IdentityIcon className="size-3.5 text-[#A0A0A0]" />
+                      <span className="text-xs text-[#A0A0A0] line-clamp-1 max-w-[100px]">
                         {getIdentityLabel(review.identityMode, review.authorName)}
                       </span>
-                      <span className="text-[10px] text-[#555555]">
+                      <span className="text-xs text-[#555555]">
                         {timeAgo(review.createdAt)}
                       </span>
                     </div>

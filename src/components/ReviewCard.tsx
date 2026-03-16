@@ -6,6 +6,8 @@ import { EyeOff, User, Globe, AlertTriangle, ChevronDown, Calendar, ExternalLink
 const STARKSCAN_TX_URL = "https://starkscan.co/tx/"
 import { StarRating } from "@/components/StarRating"
 import { ReactionBar, type ReactionType } from "@/components/ReactionBar"
+import { ShareButton } from "@/components/ShareButton"
+import { reviewShareUrl } from "@/lib/share"
 
 interface ReactionCounts {
   fire: number
@@ -25,6 +27,7 @@ interface Review {
   createdAt: string
   hidden: boolean
   txHash?: string
+  entitySlug?: string
 }
 
 interface ReviewCardProps {
@@ -135,6 +138,15 @@ export function ReviewCard({ review, onReact, colorIndex }: ReviewCardProps) {
           compact
         />
         <div className="flex items-center gap-2">
+          {review.entitySlug && (
+            <ShareButton
+              title="Check this review on Yap Me"
+              text={review.contentText.slice(0, 100)}
+              url={reviewShareUrl(review.entitySlug, review.id)}
+              className={`relative flex items-center justify-center rounded-full p-1 ${useColoredStyle ? "text-[#111111]/50 hover:text-[#111111]/80" : "text-[#555555] hover:text-[#A0A0A0]"} transition-colors`}
+              iconSize="size-3.5"
+            />
+          )}
           {review.txHash && (
             <a
               href={`${STARKSCAN_TX_URL}${review.txHash}`}

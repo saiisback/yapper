@@ -1,5 +1,7 @@
 import Link from "next/link"
-import { MapPin, Share2, Calendar, Star } from "lucide-react"
+import { Calendar, Star } from "lucide-react"
+import { ShareButton } from "@/components/ShareButton"
+import { entityShareUrl } from "@/lib/share"
 
 interface Entity {
   id: string
@@ -58,9 +60,13 @@ export function EntityCard({ entity }: EntityCardProps) {
     <Link href={getEntityHref(entity)} className="block group">
       <div className={`${bgColor} relative overflow-hidden rounded-3xl p-5 transition-all duration-200 hover:scale-[1.02] hover:shadow-xl hover:shadow-black/20`}>
         {/* Dark circular share button */}
-        <div className="absolute top-4 right-4 flex size-10 items-center justify-center rounded-full bg-[#111111] text-white transition-transform group-hover:rotate-12">
-          <Share2 className="size-4" />
-        </div>
+        <ShareButton
+          title={entity.name}
+          text={`Check out ${entity.name} on Yap Me`}
+          url={entityShareUrl(entity.type, entity.slug)}
+          className="absolute top-4 right-4 flex size-10 items-center justify-center rounded-full bg-[#111111] text-white transition-transform group-hover:rotate-12"
+          iconSize="size-4"
+        />
 
         {/* Title */}
         <h3 className="mb-4 pr-12 text-xl font-bold leading-tight tracking-tight text-[#111111] line-clamp-2">

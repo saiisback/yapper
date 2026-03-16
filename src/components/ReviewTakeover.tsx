@@ -1,9 +1,11 @@
 "use client"
 
 import { useEffect } from "react"
-import { X, EyeOff, User, Globe, Calendar, ExternalLink, Share2 } from "lucide-react"
+import { X, EyeOff, User, Globe, Calendar, ExternalLink } from "lucide-react"
 import { StarRating } from "@/components/StarRating"
 import { ReactionBar, type ReactionType } from "@/components/ReactionBar"
+import { ShareButton } from "@/components/ShareButton"
+import { reviewShareUrl } from "@/lib/share"
 
 interface ReactionCounts {
   fire: number
@@ -131,11 +133,12 @@ export function ReviewTakeover({ review, onClose, onReact }: ReviewTakeoverProps
           </button>
 
           {/* Share button */}
-          <button
+          <ShareButton
+            title={`Review of ${review.entityName}`}
+            text={review.contentText.slice(0, 100)}
+            url={reviewShareUrl(review.entitySlug, review.id)}
             className="absolute top-4 right-16 flex size-10 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm transition-all hover:bg-black/70"
-          >
-            <Share2 className="size-5" />
-          </button>
+          />
 
           {/* Entity name overlay */}
           <div className="absolute bottom-4 left-5 right-5">

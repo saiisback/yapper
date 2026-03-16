@@ -32,7 +32,7 @@ export function ReviewModal({ open, onClose }: ReviewModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const subjectRef = useRef<HTMLInputElement>(null)
   const [isMobile, setIsMobile] = useState(false)
-  const { user } = usePrivy()
+  const { user, ready, authenticated, login } = usePrivy()
 
   useEffect(() => {
     const checkMobile = () => {
@@ -99,6 +99,11 @@ export function ReviewModal({ open, onClose }: ReviewModalProps) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!isValid || submitting) return
+
+    if (!ready || !authenticated) {
+      login()
+      return
+    }
 
     setSubmitting(true)
     const authorAddress = user?.wallet?.address ?? user?.id

@@ -8,6 +8,7 @@ import { ReviewTakeover } from "@/components/ReviewTakeover"
 import { FloatingPrompt } from "@/components/FloatingPrompt"
 import { StarRating } from "@/components/StarRating"
 import { EyeOff, User, Globe } from "lucide-react"
+import { usePrivy } from "@privy-io/react-auth"
 
 interface ReactionCounts {
   fire: number
@@ -103,6 +104,7 @@ function getIdentityLabel(mode: string, name: string | null) {
 }
 
 export default function HomePage() {
+  const { user, ready, authenticated, login } = usePrivy()
   const [feed, setFeed] = useState<FeedReview[]>([])
   const [loading, setLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState<string>("foryou")
@@ -133,12 +135,13 @@ export default function HomePage() {
   }, [fetchFeed])
 
   const handleReact = async (reviewId: string, reaction: ReactionType) => {
+    if (!ready) return
+    if (!authenticated) {
+      login()
+      return
+    }
+    const voterAddress = user?.wallet?.address ?? user?.id
     try {
-      await fetch("/api/votes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reviewId, voteType: reaction }),
-      })
       // Optimistic update
       setFeed((prev) =>
         prev.map((r) => {
@@ -152,6 +155,11 @@ export default function HomePage() {
           }
         })
       )
+      await fetch("/api/votes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviewId, voteType: reaction, voterAddress }),
+      })
     } catch {
       // silent fail
     }

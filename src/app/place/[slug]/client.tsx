@@ -51,7 +51,7 @@ interface Props {
 }
 
 export function EntityPageClient({ entity, reviews: initialReviews }: Props) {
-  const { user } = usePrivy();
+  const { user, ready, authenticated, login } = usePrivy();
   const [reviews, setReviews] = useState(initialReviews);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
@@ -87,6 +87,11 @@ export function EntityPageClient({ entity, reviews: initialReviews }: Props) {
     identityMode: string;
     image?: File | null;
   }) {
+    if (!ready || !authenticated) {
+      login();
+      return;
+    }
+
     const authorAddress = user?.wallet?.address ?? user?.id;
 
     try {
@@ -150,6 +155,8 @@ export function EntityPageClient({ entity, reviews: initialReviews }: Props) {
   }
 
   async function handleReact(reviewId: string, reaction: ReactionType) {
+    if (!ready) return;
+    if (!authenticated) { login(); return; }
     const voterAddress = user?.wallet?.address ?? user?.id;
 
     // Optimistic update
@@ -225,7 +232,11 @@ export function EntityPageClient({ entity, reviews: initialReviews }: Props) {
           <ChevronLeft className="size-5" />
         </Link>
         <button
-          onClick={() => setShowReviewForm(true)}
+          onClick={() => {
+            if (!ready) return;
+            if (!authenticated) { login(); return; }
+            setShowReviewForm(true);
+          }}
           className="flex items-center gap-2 rounded-full bg-[#222222] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#2A2A2A] transition-colors"
         >
           <PenLine className="size-4" />

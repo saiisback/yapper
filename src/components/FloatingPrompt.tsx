@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Plus, X } from "lucide-react"
+import { usePrivy } from "@privy-io/react-auth"
 import { ReviewModal } from "@/components/ReviewModal"
 
 const PROMPTS = [
@@ -27,6 +28,7 @@ export function FloatingPrompt() {
   const [isExpanded, setIsExpanded] = useState(false)
   const [isDismissed, setIsDismissed] = useState(false)
   const [showModal, setShowModal] = useState(false)
+  const { ready, authenticated, login } = usePrivy()
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -36,6 +38,11 @@ export function FloatingPrompt() {
   }, [])
 
   function handleOpenModal() {
+    if (!ready) return
+    if (!authenticated) {
+      login()
+      return
+    }
     setShowModal(true)
   }
 
